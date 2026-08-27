@@ -13,7 +13,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", to: "/", icon: LayoutDashboard },
-  { label: "Analyses", to: "/analyses", icon: Boxes },
+  { label: "Binaries", to: "/binaries", icon: Boxes },
   { label: "Users", to: "/admin/users", icon: Users, roles: ["admin"] },
   { label: "Teams", to: "/admin/teams", icon: Shield, roles: ["admin"] },
   { label: "Settings", to: "/admin/settings", icon: Settings, roles: ["admin"] },

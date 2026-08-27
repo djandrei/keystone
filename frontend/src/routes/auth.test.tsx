@@ -1,7 +1,8 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "@/App";
 import { AuthProvider } from "@/auth/AuthContext";
@@ -18,16 +19,20 @@ afterEach(() => {
   localStorage.clear();
 });
 afterAll(() => server.close());
+beforeEach(() => server.use(http.get("/api/analyses", () => HttpResponse.json([]))));
 
 function renderApp(initial = "/") {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <ToastProvider>
-      <AuthProvider>
-        <MemoryRouter initialEntries={[initial]}>
-          <App />
-        </MemoryRouter>
-      </AuthProvider>
-    </ToastProvider>,
+    <QueryClientProvider client={qc}>
+      <ToastProvider>
+        <AuthProvider>
+          <MemoryRouter initialEntries={[initial]}>
+            <App />
+          </MemoryRouter>
+        </AuthProvider>
+      </ToastProvider>
+    </QueryClientProvider>,
   );
 }
 

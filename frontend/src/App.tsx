@@ -1,7 +1,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "@/pages/LoginPage";
 import { DashboardPage } from "@/pages/DashboardPage";
-import { PlaceholderPage } from "@/pages/PlaceholderPage";
+import { BinariesPage } from "@/pages/BinariesPage";
+import { AnalysisPage } from "@/pages/AnalysisPage";
 import { UsersAdminPage } from "@/pages/admin/UsersAdminPage";
 import { TeamsAdminPage } from "@/pages/admin/TeamsAdminPage";
 import { SettingsPage } from "@/pages/admin/SettingsPage";
@@ -15,10 +16,8 @@ export function App() {
       <Route element={<RequireAuth />}>
         <Route element={<ShellLayout />}>
           <Route path="/" element={<DashboardPage />} />
-          <Route
-            path="/analyses"
-            element={<PlaceholderPage title="Analyses" note="Analyses land in M2." />}
-          />
+          <Route path="/binaries" element={<BinariesPage />} />
+          <Route path="/analyses/:id" element={<AnalysisPage />} />
           <Route element={<RequireRole roles={["admin"]} />}>
             <Route path="/admin/users" element={<UsersAdminPage />} />
             <Route path="/admin/teams" element={<TeamsAdminPage />} />
