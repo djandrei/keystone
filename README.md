@@ -12,8 +12,10 @@ async analysis -> live Steps -> report; VR: Semgrep -> interactive rule pick ->
 triage + reachability); the review layer (searchable team-scoped history, MD/JSON/
 PDF export, team switcher, admin audit log, in-app notifications); and hardening —
 rate limiting, security headers, `/readyz` + `/metrics`, an 80%-gated test suite
-with `make ci`, and a one-command TLS production deploy (see `docs/deployment.md`).
-Everything is test-gated and comes up with one command.
+with `make ci`, a one-command TLS production deploy (see `docs/deployment.md`), and defence in
+depth against prompt injection in the analyzed binaries — an authenticated MCP
+server, a two-stage injection-resistant analyzer, and a ⚠ flag to the reviewer
+(see `docs/security.md`). Everything is test-gated and comes up with one command.
 
 ## Quick start (everything in Docker Compose)
 

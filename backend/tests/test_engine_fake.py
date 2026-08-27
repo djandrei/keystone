@@ -32,7 +32,7 @@ class FakeStore:
 
 
 def test_fake_pipeline_persists_re_result(session):
-    from worker import _fake_pipeline
+    from worker import _make_fake_re_pipeline
 
     services.bootstrap(session)
     team = session.query(Team).filter_by(name="Default").one()
@@ -50,7 +50,7 @@ def test_fake_pipeline_persists_re_result(session):
     status = run_analysis_core(
         a.id,
         session,
-        pipeline=_fake_pipeline,
+        pipeline=_make_fake_re_pipeline("ls"),
         persist=lambda s, an, r: persist_re_result(s, an, r, store=store),
     )
     assert status is AnalysisStatus.succeeded
