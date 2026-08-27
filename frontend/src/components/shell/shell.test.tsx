@@ -24,18 +24,18 @@ describe("AppShell", () => {
 
   it("hides admin-only nav for non-admins", () => {
     renderShell("analyst");
-    expect(screen.queryByRole("link", { name: /Admin/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Settings/ })).not.toBeInTheDocument();
   });
 
   it("shows admin nav for admins", () => {
     renderShell("admin");
-    expect(screen.getByRole("link", { name: /Admin/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Settings/ })).toBeInTheDocument();
   });
 });
 
 describe("visibleNav", () => {
   it("filters by role", () => {
     expect(visibleNav("viewer").some((i) => i.roles?.includes("admin"))).toBe(false);
-    expect(visibleNav("admin").some((i) => i.label === "Admin")).toBe(true);
+    expect(visibleNav("admin").some((i) => i.label === "Settings")).toBe(true);
   });
 });
