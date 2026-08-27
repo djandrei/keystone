@@ -57,7 +57,7 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <Wordmark className="scale-125" />
+          <Wordmark className="login-mark scale-125" />
           <p className="text-sm text-fg-muted">
             AI-assisted reverse engineering &amp; vulnerability research.
           </p>

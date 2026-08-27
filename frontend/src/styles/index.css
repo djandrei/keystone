@@ -43,3 +43,16 @@
     @apply outline-none ring-2 ring-amber ring-offset-2 ring-offset-bg;
   }
 }
+
+/* Login micro-interaction: the keystone settles into the arch. */
+@keyframes keystone-drop {
+  0% { transform: translateY(-8px) scale(0.96); opacity: 0; }
+  60% { transform: translateY(1px) scale(1.01); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+.login-mark {
+  animation: keystone-drop 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-mark { animation: none; }
+}

@@ -1,4 +1,7 @@
 import "@testing-library/jest-dom/vitest";
+import { toHaveNoViolations } from "jest-axe";
+
+expect.extend(toHaveNoViolations);
 
 // jsdom lacks several DOM APIs that Radix primitives touch. Stub them so
 // component tests render without throwing.
