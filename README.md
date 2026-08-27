@@ -5,13 +5,15 @@ vulnerability research**, built on `ghidra-headless-mcp`. See
 [`../docs/design.md`](../docs/design.md) and
 [`../docs/implementation-plan.md`](../docs/implementation-plan.md).
 
-**Milestone status:** M1–M4 complete — multi-user app (JWT auth + API tokens,
-users/teams/RBAC, admin system-settings, branded React shell), both analysis paths
-end-to-end (RE: upload -> async analysis -> live Steps -> report; VR: Semgrep ->
-interactive rule pick -> triage + reachability), and the review layer: searchable
-team-scoped history, report export (MD/JSON/PDF), a team switcher, an admin audit
-log, and in-app run notifications. Everything is test-gated and comes up with one
-command.
+**Status: Keystone v1 (M1–M5 complete).** A secure, observable, fully-tested and
+deployable multi-user app: JWT auth + API tokens, users/teams/RBAC, admin system-
+settings and the branded React shell; both analysis paths end-to-end (RE: upload ->
+async analysis -> live Steps -> report; VR: Semgrep -> interactive rule pick ->
+triage + reachability); the review layer (searchable team-scoped history, MD/JSON/
+PDF export, team switcher, admin audit log, in-app notifications); and hardening —
+rate limiting, security headers, `/readyz` + `/metrics`, an 80%-gated test suite
+with `make ci`, and a one-command TLS production deploy (see `docs/deployment.md`).
+Everything is test-gated and comes up with one command.
 
 ## Quick start (everything in Docker Compose)
 
