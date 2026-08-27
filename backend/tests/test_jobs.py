@@ -1,12 +1,10 @@
 """Stage 2.6: the analysis job lifecycle (framework-free core, injected fakes)."""
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from keystone_api import services
 from keystone_api.jobs import run_analysis_core
 from keystone_api.models import Analysis, AnalysisMode, AnalysisStatus, Binary, Team, User
-from keystone_api.security import hash_password
 from keystone_engine.events import ProgressEvent
 
 
@@ -14,7 +12,14 @@ def _make_analysis(session) -> Analysis:
     services.bootstrap(session)
     team = session.query(Team).filter_by(name="Default").one()
     u = session.query(User).filter_by(username="admin").one()
-    b = Binary(team_id=team.id, sha256="s" * 64, filename="ls", size=10, storage_key="binaries/x", uploaded_by=u.id)
+    b = Binary(
+        team_id=team.id,
+        sha256="s" * 64,
+        filename="ls",
+        size=10,
+        storage_key="binaries/x",
+        uploaded_by=u.id,
+    )
     session.add(b)
     session.flush()
     a = Analysis(team_id=team.id, binary_id=b.id, mode=AnalysisMode.re, created_by=u.id)
@@ -62,8 +67,12 @@ def test_cancel_aborts_between_steps(session):
 
     published: list[dict] = []
     status = run_analysis_core(
-        a.id, session, pipeline=pipeline, persist=lambda *x: None,
-        publish=lambda i, e: published.append(e), is_canceled=is_canceled,
+        a.id,
+        session,
+        pipeline=pipeline,
+        persist=lambda *x: None,
+        publish=lambda i, e: published.append(e),
+        is_canceled=is_canceled,
     )
     assert status is AnalysisStatus.canceled
     session.refresh(a)
@@ -87,4 +96,7 @@ def test_failure_records_error(session):
 def test_missing_analysis_returns_failed(session):
     services.bootstrap(session)
     session.commit()
-    assert run_analysis_core(9999, session, pipeline=lambda a: iter(()), persist=lambda *x: None) is AnalysisStatus.failed
+    assert (
+        run_analysis_core(9999, session, pipeline=lambda a: iter(()), persist=lambda *x: None)
+        is AnalysisStatus.failed
+    )

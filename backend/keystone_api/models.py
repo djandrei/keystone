@@ -5,6 +5,7 @@ Two orthogonal axes: `User.role` is the system capability tier; team membership
 a `team_id`; a principal sees a row iff they're a member of that team (admins
 transcend teams).
 """
+
 from __future__ import annotations
 
 import enum
@@ -13,7 +14,6 @@ from datetime import datetime
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum as SAEnum,
     ForeignKey,
     Integer,
     String,
@@ -21,9 +21,12 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy import (
+    Enum as SAEnum,
+)
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.types import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import JSON
 
 from .db import Base
 
@@ -91,7 +94,7 @@ class User(Base):
     created_at: Mapped[datetime] = _ts()
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    memberships: Mapped[list["TeamMember"]] = relationship(
+    memberships: Mapped[list[TeamMember]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -104,7 +107,7 @@ class Team(Base):
     created_at: Mapped[datetime] = _ts()
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
-    members: Mapped[list["TeamMember"]] = relationship(
+    members: Mapped[list[TeamMember]] = relationship(
         back_populates="team", cascade="all, delete-orphan"
     )
 
@@ -112,8 +115,12 @@ class Team(Base):
 class TeamMember(Base):
     __tablename__ = "team_members"
 
-    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    team_id: Mapped[int] = mapped_column(
+        ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
     team_role: Mapped[TeamRole] = mapped_column(SAEnum(TeamRole), default=TeamRole.member)
     added_at: Mapped[datetime] = _ts()
 
@@ -155,19 +162,21 @@ class Analysis(Base):
     model: Mapped[str | None] = mapped_column(String(120))
     params: Mapped[dict | None] = mapped_column(JsonB)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
     progress: Mapped[dict | None] = mapped_column(JsonB)
 
-    re_result: Mapped["REResult | None"] = relationship(
+    re_result: Mapped[REResult | None] = relationship(
         back_populates="analysis", cascade="all, delete-orphan", uselist=False
     )
-    findings: Mapped[list["VRFinding"]] = relationship(
+    findings: Mapped[list[VRFinding]] = relationship(
         back_populates="analysis", cascade="all, delete-orphan"
     )
-    report: Mapped["Report | None"] = relationship(
+    report: Mapped[Report | None] = relationship(
         back_populates="analysis", cascade="all, delete-orphan", uselist=False
     )
 

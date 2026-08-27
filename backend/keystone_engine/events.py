@@ -1,4 +1,5 @@
 """Progress events emitted by pipelines as they run."""
+
 from __future__ import annotations
 
 import enum
@@ -26,13 +27,13 @@ class ProgressEvent(BaseModel):
     data: dict | None = None
 
     @classmethod
-    def step_start(cls, step: str, seq: int = 0, **data: object) -> "ProgressEvent":
+    def step_start(cls, step: str, seq: int = 0, **data: object) -> ProgressEvent:
         return cls(type=EventType.step_start, step=step, seq=seq, data=data or None)
 
     @classmethod
-    def step_finish(cls, step: str, seq: int = 0, **data: object) -> "ProgressEvent":
+    def step_finish(cls, step: str, seq: int = 0, **data: object) -> ProgressEvent:
         return cls(type=EventType.step_finish, step=step, seq=seq, data=data or None)
 
     @classmethod
-    def log(cls, message: str, seq: int = 0, step: str | None = None) -> "ProgressEvent":
+    def log(cls, message: str, seq: int = 0, step: str | None = None) -> ProgressEvent:
         return cls(type=EventType.log, message=message, seq=seq, step=step)

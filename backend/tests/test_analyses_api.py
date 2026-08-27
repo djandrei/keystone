@@ -1,10 +1,20 @@
 """Stage 2.7: analysis start/list/read/report/cancel over the API (team-scoped),
 with enqueue/cancel/store injected."""
+
 from __future__ import annotations
 
 from keystone_api import services
 from keystone_api.models import (
-    Analysis, AnalysisMode, AnalysisStatus, Binary, Report, Role, Team, TeamMember, TeamRole, User,
+    Analysis,
+    AnalysisMode,
+    AnalysisStatus,
+    Binary,
+    Report,
+    Role,
+    Team,
+    TeamMember,
+    TeamRole,
+    User,
 )
 from keystone_api.security import hash_password
 
@@ -30,7 +40,9 @@ def _setup(app):
 
 
 def _tok(client, u, p):
-    return client.post("/auth/login", json={"username": u, "password": p}).get_json()["access_token"]
+    return client.post("/auth/login", json={"username": u, "password": p}).get_json()[
+        "access_token"
+    ]
 
 
 def _h(tok):
@@ -43,7 +55,14 @@ def _mk(session, uname="ana", team="Blue", role=Role.analyst):
     session.add_all([t, u])
     session.flush()
     session.add(TeamMember(team_id=t.id, user_id=u.id, team_role=TeamRole.member))
-    b = Binary(team_id=t.id, sha256="a" * 64, filename="ls", size=5, storage_key="binaries/a", uploaded_by=u.id)
+    b = Binary(
+        team_id=t.id,
+        sha256="a" * 64,
+        filename="ls",
+        size=5,
+        storage_key="binaries/a",
+        uploaded_by=u.id,
+    )
     session.add(b)
     session.commit()
     return u, t, b
@@ -53,6 +72,7 @@ def test_start_analysis_enqueues(app, client, session):
     _setup(app)
     services.bootstrap(session)
     from keystone_api.services import update_settings
+
     update_settings(session, default_model="qwen/qwen3-8b")
     ana, team, binary = _mk(session)
     session.commit()
@@ -74,9 +94,19 @@ def test_start_rejects_bad_mode_and_viewer(app, client, session):
     session.add(TeamMember(team_id=team.id, user_id=v.id, team_role=TeamRole.member))
     session.commit()
     ana_tok = _tok(client, "ana", "pw123456")
-    assert client.post(f"/binaries/{binary.id}/analyses", headers=_h(ana_tok), json={"mode": "xx"}).status_code == 400
+    assert (
+        client.post(
+            f"/binaries/{binary.id}/analyses", headers=_h(ana_tok), json={"mode": "xx"}
+        ).status_code
+        == 400
+    )
     vic_tok = _tok(client, "vic", "pw123456")
-    assert client.post(f"/binaries/{binary.id}/analyses", headers=_h(vic_tok), json={"mode": "re"}).status_code == 403
+    assert (
+        client.post(
+            f"/binaries/{binary.id}/analyses", headers=_h(vic_tok), json={"mode": "re"}
+        ).status_code
+        == 403
+    )
 
 
 def test_list_and_read_scoped(app, client, session):
@@ -102,8 +132,13 @@ def test_report_endpoint(app, client, session):
     _setup(app)
     services.bootstrap(session)
     ana, team, binary = _mk(session)
-    a = Analysis(team_id=team.id, binary_id=binary.id, mode=AnalysisMode.re,
-                 status=AnalysisStatus.succeeded, created_by=ana.id)
+    a = Analysis(
+        team_id=team.id,
+        binary_id=binary.id,
+        mode=AnalysisMode.re,
+        status=AnalysisStatus.succeeded,
+        created_by=ana.id,
+    )
     session.add(a)
     session.flush()
     app.config["OBJECT_STORE"].put(f"reports/{a.id}.md", b"# RE Analysis\nlanguage_runtime: C")
@@ -119,8 +154,13 @@ def test_cancel(app, client, session):
     _setup(app)
     services.bootstrap(session)
     ana, team, binary = _mk(session)
-    a = Analysis(team_id=team.id, binary_id=binary.id, mode=AnalysisMode.re,
-                 status=AnalysisStatus.running, created_by=ana.id)
+    a = Analysis(
+        team_id=team.id,
+        binary_id=binary.id,
+        mode=AnalysisMode.re,
+        status=AnalysisStatus.running,
+        created_by=ana.id,
+    )
     session.add(a)
     session.commit()
     tok = _tok(client, "ana", "pw123456")

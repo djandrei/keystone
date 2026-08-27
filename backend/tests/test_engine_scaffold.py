@@ -1,5 +1,6 @@
 """Stage 2.0: the engine imports cleanly, its contracts round-trip, and it stays
 free of any UI/framework/ORM import (the boundary the whole design rests on)."""
+
 from __future__ import annotations
 
 import ast

@@ -3,6 +3,7 @@
 `User.role` is the capability tier; team membership is the visibility boundary.
 Both are enforced server-side on every route.
 """
+
 from __future__ import annotations
 
 from functools import wraps

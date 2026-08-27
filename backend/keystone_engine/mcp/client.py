@@ -8,6 +8,7 @@ The transport is injectable: unit tests pass a `FakeTransport`; the default
 start on the server (~2.8 s), so the client batches where the server supports it
 (decompile/xref list forms) to amortize it.
 """
+
 from __future__ import annotations
 
 import json
@@ -44,7 +45,9 @@ class HttpTransport:
                 url, data=body, headers={"Content-Type": "application/json"}, method="POST"
             )
             try:
-                with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # noqa: S310 (trusted internal service)
+                with urllib.request.urlopen(
+                    req, timeout=self.timeout
+                ) as resp:  # noqa: S310 (trusted internal service)
                     payload = resp.read().decode("utf-8")
                 parsed = json.loads(payload) if payload else {}
                 return parsed if isinstance(parsed, dict) else {"result": parsed}
@@ -111,11 +114,17 @@ class GhidraMcpClient:
         return self._t.call("decompile_function", {"program": program, "function": function})
 
     # --- xrefs (target may be a list; program may be a list or "*") ----------
-    def xrefs_to(self, program: str | list[str], target: str | list[str], *, limit: int = 100) -> dict:
+    def xrefs_to(
+        self, program: str | list[str], target: str | list[str], *, limit: int = 100
+    ) -> dict:
         return self._t.call("list_xrefs_to", {"program": program, "target": target, "limit": limit})
 
-    def xrefs_from(self, program: str | list[str], target: str | list[str], *, limit: int = 100) -> dict:
-        return self._t.call("list_xrefs_from", {"program": program, "target": target, "limit": limit})
+    def xrefs_from(
+        self, program: str | list[str], target: str | list[str], *, limit: int = 100
+    ) -> dict:
+        return self._t.call(
+            "list_xrefs_from", {"program": program, "target": target, "limit": limit}
+        )
 
     # --- search / resolve ---------------------------------------------------
     def search_code(self, program: str, pattern: str, *, limit: int = 100) -> dict:

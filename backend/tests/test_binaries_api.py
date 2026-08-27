@@ -1,5 +1,6 @@
 """Stage 2.5: upload -> fingerprint -> store -> team-scoped row; dedup, scoping,
 sniffing, size cap. Uses an in-memory object store (no MinIO)."""
+
 from __future__ import annotations
 
 import io
@@ -31,7 +32,9 @@ def _bootstrap(session):
 
 
 def _tok(client, u, p):
-    return client.post("/auth/login", json={"username": u, "password": p}).get_json()["access_token"]
+    return client.post("/auth/login", json={"username": u, "password": p}).get_json()[
+        "access_token"
+    ]
 
 
 def _h(tok):
@@ -39,7 +42,14 @@ def _h(tok):
 
 
 ELF = b"\x7fELF" + b"\x02\x01\x01" + b"\x00" * 11 + struct.pack("<H", 0x3E) + b"\x00" * 40
-PE = b"MZ" + b"\x00" * 58 + struct.pack("<I", 0x80) + b"\x00" * (0x80 - 0x40) + b"PE\x00\x00" + struct.pack("<H", 0x8664)
+PE = (
+    b"MZ"
+    + b"\x00" * 58
+    + struct.pack("<I", 0x80)
+    + b"\x00" * (0x80 - 0x40)
+    + b"PE\x00\x00"
+    + struct.pack("<H", 0x8664)
+)
 
 
 def _upload(client, tok, team_id, name, data):
@@ -53,7 +63,12 @@ def _upload(client, tok, team_id, name, data):
 
 def _mk_analyst(session, name="ana", team="Blue"):
     t = Team(name=team)
-    u = User(username=name, email=f"{name}@x.io", password_hash=hash_password("pw123456"), role=Role.analyst)
+    u = User(
+        username=name,
+        email=f"{name}@x.io",
+        password_hash=hash_password("pw123456"),
+        role=Role.analyst,
+    )
     session.add_all([t, u])
     session.flush()
     session.add(TeamMember(team_id=t.id, user_id=u.id, team_role=TeamRole.member))
@@ -117,16 +132,20 @@ def test_team_scoping(app, client, session):
 def test_oversize_rejected(session):
     app = create_app(Settings(env="test", database_url="sqlite://", upload_max_bytes=10))
     import keystone_api.models  # noqa: F401
+
     Base.metadata.create_all(get_engine())
     app.config["OBJECT_STORE"] = FakeStore()
     client = app.test_client()
     s = None
     from keystone_api.db import get_session
+
     s = get_session()
     services.bootstrap(s)
     s.commit()
     ana, team = _mk_analyst(s)
-    tok = client.post("/auth/login", json={"username": "ana", "password": "pw123456"}).get_json()["access_token"]
+    tok = client.post("/auth/login", json={"username": "ana", "password": "pw123456"}).get_json()[
+        "access_token"
+    ]
     r = _upload(client, tok, team.id, "big.bin", b"x" * 50)
     assert r.status_code == 413
     s.close()

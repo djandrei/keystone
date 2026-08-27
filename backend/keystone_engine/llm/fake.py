@@ -1,6 +1,7 @@
 """Deterministic fake LM for unit tests — no network, no real model.
 
 Wraps DSPy's DummyLM so pipeline tests can assert on a fixed event/result shape."""
+
 from __future__ import annotations
 
 from typing import Any

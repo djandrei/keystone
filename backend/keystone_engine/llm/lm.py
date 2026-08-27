@@ -3,6 +3,7 @@
 The engine never reads the DB — the worker pulls the endpoint/model from
 `system_settings` and the key from the deployment secret, and passes them here.
 The `openai/` prefix routes litellm to any OpenAI-compatible endpoint."""
+
 from __future__ import annotations
 
 from typing import Any

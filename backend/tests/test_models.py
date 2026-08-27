@@ -56,30 +56,55 @@ def test_unique_username(session):
 def test_binary_unique_per_team(session):
     u = _user(session)
     t = _team(session)
-    session.add(Binary(team_id=t.id, sha256="a" * 64, filename="ls", size=1,
-                        storage_key="k1", uploaded_by=u.id))
+    session.add(
+        Binary(
+            team_id=t.id, sha256="a" * 64, filename="ls", size=1, storage_key="k1", uploaded_by=u.id
+        )
+    )
     session.commit()
     with pytest.raises(IntegrityError):  # same (team, sha) rejected
-        session.add(Binary(team_id=t.id, sha256="a" * 64, filename="ls2", size=1,
-                            storage_key="k2", uploaded_by=u.id))
+        session.add(
+            Binary(
+                team_id=t.id,
+                sha256="a" * 64,
+                filename="ls2",
+                size=1,
+                storage_key="k2",
+                uploaded_by=u.id,
+            )
+        )
         session.commit()
     session.rollback()
     # a different team may hold the same bytes
     t2 = _team(session, "Red")
-    session.add(Binary(team_id=t2.id, sha256="a" * 64, filename="ls", size=1,
-                       storage_key="k3", uploaded_by=u.id))
+    session.add(
+        Binary(
+            team_id=t2.id,
+            sha256="a" * 64,
+            filename="ls",
+            size=1,
+            storage_key="k3",
+            uploaded_by=u.id,
+        )
+    )
     session.commit()
 
 
 def test_analysis_cascade_delete(session):
     u = _user(session)
     t = _team(session)
-    b = Binary(team_id=t.id, sha256="b" * 64, filename="x", size=1,
-               storage_key="k", uploaded_by=u.id)
+    b = Binary(
+        team_id=t.id, sha256="b" * 64, filename="x", size=1, storage_key="k", uploaded_by=u.id
+    )
     session.add(b)
     session.flush()
-    a = Analysis(team_id=t.id, binary_id=b.id, mode=AnalysisMode.re,
-                 status=AnalysisStatus.queued, created_by=u.id)
+    a = Analysis(
+        team_id=t.id,
+        binary_id=b.id,
+        mode=AnalysisMode.re,
+        status=AnalysisStatus.queued,
+        created_by=u.id,
+    )
     session.add(a)
     session.commit()
     assert session.query(Analysis).count() == 1

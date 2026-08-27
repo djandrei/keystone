@@ -3,11 +3,13 @@
 (findings, Report), mirroring re_path.run.
 
 Agents and the Semgrep runner are injectable so it tests with fakes."""
+
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 
 from keystone_engine.events import EventType, ProgressEvent
 from keystone_engine.mcp import GhidraMcpClient
@@ -28,7 +30,9 @@ def _code_lookup(finding: VRFinding) -> str:
     return ""
 
 
-def assemble_vr_report(binary: BinaryRef, findings: list[VRFinding], rule_class: str | None) -> Report:
+def assemble_vr_report(
+    binary: BinaryRef, findings: list[VRFinding], rule_class: str | None
+) -> Report:
     lines = [
         f"# VR Analysis — {binary.filename or binary.program}",
         "",
@@ -85,7 +89,9 @@ def run(
     elif rule_resolver is not None and groups:
         # pause for an interactive rule selection; the resolver blocks until the
         # user answers (or times out to the auto-pick).
-        yield ProgressEvent(type=EventType.needs_input, seq=seq.next(), step="rule_pick", data={"classes": counts})
+        yield ProgressEvent(
+            type=EventType.needs_input, seq=seq.next(), step="rule_pick", data={"classes": counts}
+        )
         chosen = rule_resolver(counts)
     else:
         chosen = max(groups, key=lambda k: len(groups[k])) if groups else None
@@ -105,5 +111,7 @@ def run(
     )
 
     report = assemble_vr_report(binary, assessed, chosen)
-    yield ProgressEvent(type=EventType.done, seq=seq.next(), step="done", data={"findings": len(assessed)})
+    yield ProgressEvent(
+        type=EventType.done, seq=seq.next(), step="done", data={"findings": len(assessed)}
+    )
     return assessed, report

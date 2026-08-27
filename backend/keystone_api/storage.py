@@ -3,6 +3,7 @@
 Keys are `binaries/{sha256}` so identical bytes dedupe to one object regardless
 of how many teams upload them. The store is injectable (app.config['OBJECT_STORE'])
 so tests use an in-memory fake and never need a live MinIO."""
+
 from __future__ import annotations
 
 from functools import lru_cache

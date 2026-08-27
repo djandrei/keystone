@@ -21,14 +21,18 @@ def _bootstrap(session):
 
 
 def _login(client, u, p):
-    return client.post("/auth/login", json={"username": u, "password": p}).get_json()["access_token"]
+    return client.post("/auth/login", json={"username": u, "password": p}).get_json()[
+        "access_token"
+    ]
 
 
 def _mk_analyst(session, team_name="Blue"):
     from keystone_api.security import hash_password
 
     t = Team(name=team_name)
-    u = User(username="ana", email="ana@x", password_hash=hash_password("pw123456"), role=Role.analyst)
+    u = User(
+        username="ana", email="ana@x", password_hash=hash_password("pw123456"), role=Role.analyst
+    )
     session.add_all([t, u])
     session.flush()
     session.add(TeamMember(team_id=t.id, user_id=u.id, team_role=TeamRole.member))
@@ -51,7 +55,10 @@ def test_require_role_gates_by_role(app, client, session):
     ana_tok = _login(client, "ana", "pw123456")
 
     assert client.get("/_t/admin-only").status_code == 401  # no auth
-    assert client.get("/_t/admin-only", headers={"Authorization": f"Bearer {ana_tok}"}).status_code == 403
+    assert (
+        client.get("/_t/admin-only", headers={"Authorization": f"Bearer {ana_tok}"}).status_code
+        == 403
+    )
     r = client.get("/_t/admin-only", headers={"Authorization": f"Bearer {admin_tok}"})
     assert r.status_code == 200 and r.get_json()["ok"] == "admin"
 
@@ -63,10 +70,26 @@ def test_scope_to_teams(session):
     other = Team(name="Red")
     session.add(other)
     session.flush()
-    session.add_all([
-        Binary(team_id=blue.id, sha256="a" * 64, filename="x", size=1, storage_key="k1", uploaded_by=ana.id),
-        Binary(team_id=other.id, sha256="b" * 64, filename="y", size=1, storage_key="k2", uploaded_by=ana.id),
-    ])
+    session.add_all(
+        [
+            Binary(
+                team_id=blue.id,
+                sha256="a" * 64,
+                filename="x",
+                size=1,
+                storage_key="k1",
+                uploaded_by=ana.id,
+            ),
+            Binary(
+                team_id=other.id,
+                sha256="b" * 64,
+                filename="y",
+                size=1,
+                storage_key="k2",
+                uploaded_by=ana.id,
+            ),
+        ]
+    )
     session.commit()
 
     ana_p = Principal(user=ana, role=Role.analyst, team_ids=[blue.id])

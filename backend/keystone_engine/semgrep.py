@@ -3,13 +3,14 @@
 The Semgrep invocation is injectable so unit tests run without the semgrep binary
 or rule packs; the default runner shells out to `semgrep --json`. Findings are
 grouped by rule class so the VR pipeline can pick a class to focus on."""
+
 from __future__ import annotations
 
 import json
 import subprocess
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from keystone_engine.mcp import GhidraMcpClient
 from keystone_engine.results import VRFinding
@@ -17,7 +18,9 @@ from keystone_engine.results import VRFinding
 SemgrepRunner = Callable[[str, str], dict]
 
 
-def decompile_program_to_dir(client: GhidraMcpClient, program: str, sha256: str, base_dir: str | Path) -> Path:
+def decompile_program_to_dir(
+    client: GhidraMcpClient, program: str, sha256: str, base_dir: str | Path
+) -> Path:
     """Decompile every real function to `{base_dir}/{sha256}/{fn}.c` in one batched
     call. Cached: a `.complete` marker short-circuits re-decompilation."""
     target = Path(base_dir) / sha256
@@ -26,7 +29,11 @@ def decompile_program_to_dir(client: GhidraMcpClient, program: str, sha256: str,
     target.mkdir(parents=True, exist_ok=True)
 
     fns = client.list_functions(program, limit=5000).get("functions", [])
-    names = [f["name"] for f in fns if not f.get("is_thunk") and not f.get("is_external") and f.get("name")]
+    names = [
+        f["name"]
+        for f in fns
+        if not f.get("is_thunk") and not f.get("is_external") and f.get("name")
+    ]
     if names:
         resp = client.decompile_function(program, names if len(names) > 1 else names[0])
         rows = resp.get("results") or [{"target": names[0], "c": resp.get("c", "")}]
@@ -76,7 +83,9 @@ def parse_semgrep(raw: dict) -> list[VRFinding]:
     return findings
 
 
-def run_semgrep(target_dir: str | Path, config: str, *, runner: SemgrepRunner | None = None) -> list[VRFinding]:
+def run_semgrep(
+    target_dir: str | Path, config: str, *, runner: SemgrepRunner | None = None
+) -> list[VRFinding]:
     runner = runner or _default_semgrep_runner
     raw = runner(str(target_dir), config)
     return parse_semgrep(raw)

@@ -1,9 +1,19 @@
 """Map engine result models onto DB rows + a stored report artifact."""
+
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from keystone_engine.results import Report as EngineReport, REResult as EngineRE, VRFinding as EngineVR
+from keystone_engine.results import (
+    Report as EngineReport,
+)
+from keystone_engine.results import (
+    REResult as EngineRE,
+)
+from keystone_engine.results import (
+    VRFinding as EngineVR,
+)
+
 from .models import Analysis, Classification, Report, REResult, RiskLevel, VRFinding
 from .storage import ObjectStore
 
@@ -12,7 +22,9 @@ def _report_key(analysis_id: int) -> str:
     return f"reports/{analysis_id}.md"
 
 
-def persist_re_result(session: Session, analysis: Analysis, result: object, *, store: ObjectStore) -> None:
+def persist_re_result(
+    session: Session, analysis: Analysis, result: object, *, store: ObjectStore
+) -> None:
     re_result, report = result  # type: ignore[misc]
     assert isinstance(re_result, EngineRE) and isinstance(report, EngineReport)
     session.add(
@@ -39,7 +51,9 @@ def _enum_or_none(enum_cls, value):  # type: ignore[no-untyped-def]
         return None
 
 
-def persist_vr_result(session: Session, analysis: Analysis, result: object, *, store: ObjectStore) -> None:
+def persist_vr_result(
+    session: Session, analysis: Analysis, result: object, *, store: ObjectStore
+) -> None:
     findings, report = result  # type: ignore[misc]
     for f in findings:
         assert isinstance(f, EngineVR)

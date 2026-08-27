@@ -1,4 +1,5 @@
 """Stage 3.3: the VR pipeline — event sequence, rule pick, findings shape."""
+
 from __future__ import annotations
 
 from keystone_engine.events import EventType
@@ -9,7 +10,9 @@ from keystone_engine.pipelines import BinaryRef, vr_path
 class FakeMcp:
     def call(self, tool, args):
         if tool == "list_functions":
-            return {"functions": [{"name": "parse_header", "is_thunk": False, "is_external": False}]}
+            return {
+                "functions": [{"name": "parse_header", "is_thunk": False, "is_external": False}]
+            }
         if tool == "decompile_function":
             targets = args["function"] if isinstance(args["function"], list) else [args["function"]]
             return {"results": [{"target": t, "c": f"void {t}(){{}}"} for t in targets]}
@@ -18,12 +21,24 @@ class FakeMcp:
 
 SEMGREP = {
     "results": [
-        {"check_id": "rules.c.integer-overflow", "path": "/x/parse_header.c",
-         "start": {"line": 3}, "extra": {"message": "overflow into memcpy"}},
-        {"check_id": "rules.c.integer-overflow", "path": "/x/other.c",
-         "start": {"line": 5}, "extra": {"message": "unchecked len"}},
-        {"check_id": "rules.c.format-string", "path": "/x/log.c",
-         "start": {"line": 1}, "extra": {"message": "fmt"}},
+        {
+            "check_id": "rules.c.integer-overflow",
+            "path": "/x/parse_header.c",
+            "start": {"line": 3},
+            "extra": {"message": "overflow into memcpy"},
+        },
+        {
+            "check_id": "rules.c.integer-overflow",
+            "path": "/x/other.c",
+            "start": {"line": 5},
+            "extra": {"message": "unchecked len"},
+        },
+        {
+            "check_id": "rules.c.format-string",
+            "path": "/x/log.c",
+            "start": {"line": 1},
+            "extra": {"message": "fmt"},
+        },
     ]
 }
 
@@ -35,6 +50,7 @@ class TriageStub:
             risk_level = "high"
             cwe_id = "CWE-190"
             reasoning = "unchecked length"
+
         return P()
 
 
@@ -44,6 +60,7 @@ class ReachStub:
             reachable = "yes"
             entry_path = "ioctl -> parse_header"
             confidence = "high"
+
         return P()
 
 
@@ -60,8 +77,12 @@ def test_vr_pipeline_auto_picks_and_annotates(tmp_path):
     client = GhidraMcpClient(transport=FakeMcp())
     binary = BinaryRef(program="drv", sha256="h1", filename="ksthunk.sys")
     gen = vr_path.run(
-        binary, client, base_dir=str(tmp_path),
-        semgrep_runner=lambda d, c: SEMGREP, triage_agent=TriageStub(), reachability_agent=ReachStub(),
+        binary,
+        client,
+        base_dir=str(tmp_path),
+        semgrep_runner=lambda d, c: SEMGREP,
+        triage_agent=TriageStub(),
+        reachability_agent=ReachStub(),
     )
     events, (findings, report) = _drive(gen)
 
@@ -83,8 +104,14 @@ def test_vr_pipeline_honors_explicit_rule_and_budget(tmp_path):
     client = GhidraMcpClient(transport=FakeMcp())
     binary = BinaryRef(program="drv", sha256="h2", filename="d.sys")
     gen = vr_path.run(
-        binary, client, base_dir=str(tmp_path), rule="format-string", budget=5,
-        semgrep_runner=lambda d, c: SEMGREP, triage_agent=TriageStub(), reachability_agent=ReachStub(),
+        binary,
+        client,
+        base_dir=str(tmp_path),
+        rule="format-string",
+        budget=5,
+        semgrep_runner=lambda d, c: SEMGREP,
+        triage_agent=TriageStub(),
+        reachability_agent=ReachStub(),
     )
     _events, (findings, _report) = _drive(gen)
     assert len(findings) == 1 and findings[0].rule.endswith("format-string")
@@ -102,8 +129,13 @@ def test_vr_pipeline_interactive_rule_resolver(tmp_path):
         return "format-string"  # user picks the smaller class
 
     gen = vr_path.run(
-        binary, client, base_dir=str(tmp_path), rule_resolver=resolver,
-        semgrep_runner=lambda d, c: SEMGREP, triage_agent=TriageStub(), reachability_agent=ReachStub(),
+        binary,
+        client,
+        base_dir=str(tmp_path),
+        rule_resolver=resolver,
+        semgrep_runner=lambda d, c: SEMGREP,
+        triage_agent=TriageStub(),
+        reachability_agent=ReachStub(),
     )
     events, (findings, _r) = _drive(gen)
     assert any(e.type is ET.needs_input and e.step == "rule_pick" for e in events)

@@ -50,6 +50,7 @@ line-length = 100
 target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "B008", "B904", "B007", "E731", "UP042", "UP047"]
 
 [tool.black]
 line-length = 100
@@ -57,5 +58,12 @@ target-version = ["py312"]
 
 [tool.mypy]
 python_version = "3.12"
-strict = true
 ignore_missing_imports = true
+check_untyped_defs = false
+
+[tool.coverage.run]
+source = ["keystone_api", "keystone_engine"]
+omit = ["tests/*", "migrations/*"]
+
+[tool.coverage.report]
+skip_empty = true

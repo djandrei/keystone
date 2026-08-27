@@ -1,4 +1,5 @@
 """Admin user management (create/list/update/deactivate)."""
+
 from __future__ import annotations
 
 import secrets
@@ -72,7 +73,14 @@ def create_user():  # type: ignore[no-untyped-def]
     )
     db.add(user)
     db.flush()
-    audit(db, g.principal, "user.create", "user", user.id, {"username": user.username, "role": user.role.value})
+    audit(
+        db,
+        g.principal,
+        "user.create",
+        "user",
+        user.id,
+        {"username": user.username, "role": user.role.value},
+    )
     db.commit()
     # temp password returned ONCE when the admin didn't set one
     resp = _public(user)

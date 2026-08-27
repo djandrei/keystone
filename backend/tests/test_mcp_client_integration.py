@@ -3,6 +3,7 @@
 Skips unless the service is reachable (set KEYSTONE_MCP_ENDPOINT; inside the
 Compose network it is http://ghidra-mcp:1341). Deselected by default — run with
 `pytest -m integration`."""
+
 from __future__ import annotations
 
 import os

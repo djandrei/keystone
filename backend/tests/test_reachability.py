@@ -1,4 +1,5 @@
 """Stage 3.2: VR reachability — runs only on suspicious findings."""
+
 from __future__ import annotations
 
 from keystone_engine.results import VRFinding
@@ -15,6 +16,7 @@ class StubAgent:
             reachable = "yes"
             entry_path = "ioctl_handler -> parse_header"
             confidence = "medium"
+
         return Pred()
 
 

@@ -1,4 +1,5 @@
 """Stage 2.2: LM factory, retry wrapper, and fake-LM determinism."""
+
 from __future__ import annotations
 
 import pytest
@@ -29,7 +30,9 @@ def test_retry_gives_up_cleanly():
 
     seen: list[int] = []
     with pytest.raises(LlmParseError):
-        react_with_retry(run, retries=2, parse_errors=(FakeParse,), on_retry=lambda a, e: seen.append(a))
+        react_with_retry(
+            run, retries=2, parse_errors=(FakeParse,), on_retry=lambda a, e: seen.append(a)
+        )
     assert seen == [0, 1, 2]  # every attempt reported
 
 
@@ -37,7 +40,10 @@ def test_fallback_used_after_retries():
     def run():
         raise FakeParse("bad")
 
-    assert react_with_retry(run, retries=1, parse_errors=(FakeParse,), fallback=lambda: "fell-back") == "fell-back"
+    assert (
+        react_with_retry(run, retries=1, parse_errors=(FakeParse,), fallback=lambda: "fell-back")
+        == "fell-back"
+    )
 
 
 def test_non_parse_error_propagates_immediately():

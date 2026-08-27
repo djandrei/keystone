@@ -1,4 +1,5 @@
 """Password hashing (Argon2). Token/JWT helpers land in M1.4/1.5."""
+
 from __future__ import annotations
 
 from argon2 import PasswordHasher

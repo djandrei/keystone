@@ -3,15 +3,16 @@
 Team creation is admin-only. Membership can be managed by an admin or by a
 `lead` of that specific team. Listing/reading is team-scoped for non-admins.
 """
+
 from __future__ import annotations
 
 from flask import Blueprint, g, jsonify, request
 from pydantic import BaseModel, Field, ValidationError
 
 from .audit import audit
+from .auth.deps import require_auth
 from .context import get_db
 from .models import Role, Team, TeamMember, TeamRole, User
-from .auth.deps import require_auth
 from .rbac import can_access_team, is_team_lead, require_role
 
 teams_bp = Blueprint("teams", __name__, url_prefix="/teams")
@@ -104,7 +105,14 @@ def add_member(team_id: int):  # type: ignore[no-untyped-def]
     if db.get(TeamMember, (team_id, body.user_id)) is not None:
         return jsonify(error="already_member"), 409
     db.add(TeamMember(team_id=team_id, user_id=body.user_id, team_role=body.team_role))
-    audit(db, g.principal, "team.member_add", "team", team_id, {"user_id": body.user_id, "team_role": body.team_role.value})
+    audit(
+        db,
+        g.principal,
+        "team.member_add",
+        "team",
+        team_id,
+        {"user_id": body.user_id, "team_role": body.team_role.value},
+    )
     db.commit()
     return jsonify(status="ok"), 201
 

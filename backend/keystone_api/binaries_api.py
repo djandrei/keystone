@@ -4,6 +4,7 @@ Upload flow: read (capped) -> sha256 fingerprint -> content-addressed MinIO put
 (dedup) -> magic-byte sniff -> best-effort write to the shared samples dir for
 later Ghidra import -> team-scoped `binaries` row (UNIQUE(team_id, sha256) dedups
 per team). Samples are NEVER executed."""
+
 from __future__ import annotations
 
 import hashlib
@@ -13,12 +14,12 @@ import re
 from flask import Blueprint, current_app, g, jsonify, request
 
 from .audit import audit
+from .auth.deps import require_auth
 from .config import get_settings
 from .context import get_db
 from .models import Binary, Role
-from .auth.deps import require_auth
-from .rbac import can_access_team, require_role, scope_to_teams
 from .ratelimit import rate_limit
+from .rbac import can_access_team, require_role, scope_to_teams
 from .sniff import sniff
 from .storage import ObjectStore, get_object_store
 
@@ -109,7 +110,9 @@ def upload_binary():  # type: ignore[no-untyped-def]
     )
     db.add(row)
     db.flush()
-    audit(db, g.principal, "binary.upload", "binary", row.id, {"sha256": sha256, "team_id": team_id})
+    audit(
+        db, g.principal, "binary.upload", "binary", row.id, {"sha256": sha256, "team_id": team_id}
+    )
     db.commit()
     return jsonify(_public(row)), 201
 

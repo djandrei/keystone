@@ -1,7 +1,8 @@
 """Self-service personal API token management."""
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from flask import Blueprint, g, jsonify, request
 from pydantic import BaseModel, Field, ValidationError
@@ -22,7 +23,9 @@ class CreateTokenRequest(BaseModel):
 
 def _public(t) -> dict:  # type: ignore[no-untyped-def]
     return {
-        "id": t.id, "name": t.name, "scopes": t.scopes,
+        "id": t.id,
+        "name": t.name,
+        "scopes": t.scopes,
         "expires_at": t.expires_at.isoformat() if t.expires_at else None,
         "created_at": t.created_at.isoformat() if t.created_at else None,
         "last_used_at": t.last_used_at.isoformat() if t.last_used_at else None,
@@ -45,9 +48,7 @@ def create_token():  # type: ignore[no-untyped-def]
     except ValidationError as e:
         return jsonify(error="invalid_request", detail=e.errors()), 400
     expires_at = (
-        datetime.now(timezone.utc) + timedelta(days=body.expires_in_days)
-        if body.expires_in_days
-        else None
+        datetime.now(UTC) + timedelta(days=body.expires_in_days) if body.expires_in_days else None
     )
     db = get_db()
     tok, raw = create_api_token(db, g.principal.user, body.name, body.scopes, expires_at)

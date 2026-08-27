@@ -1,4 +1,5 @@
 """Request-scoped SQLAlchemy session bound to the Flask app context."""
+
 from __future__ import annotations
 
 from flask import Flask, g

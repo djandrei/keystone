@@ -1,4 +1,5 @@
 """Audit trail for privileged actions."""
+
 from __future__ import annotations
 
 from sqlalchemy.orm import Session

@@ -10,6 +10,7 @@ from keystone_api.db import Base, get_engine, get_session
 def app():
     app = create_app(Settings(env="test", database_url="sqlite://"))
     import keystone_api.models  # noqa: F401  register tables
+
     Base.metadata.create_all(get_engine())
     return app
 

@@ -4,6 +4,7 @@ Front-loads the settings later stages need (DB, Redis, S3, JWT, admin bootstrap,
 MCP, LLM key) so those stages consume config rather than re-editing this file.
 Non-secret defaults match `infra/.env.example` for a friction-free dev up.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -12,9 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="KEYSTONE_", env_file=".env", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_prefix="KEYSTONE_", env_file=".env", extra="ignore")
 
     # --- app ---
     env: str = "development"

@@ -1,4 +1,5 @@
 """Stage 2.1: MCP client mapping + transport retry (unit, offline)."""
+
 from __future__ import annotations
 
 import pytest
@@ -26,10 +27,12 @@ def test_imports_and_exports_map_to_list_symbols():
 
 
 def test_analyze_and_list_programs():
-    t = FakeTransport({
-        "analyze_binary": {"program": "ls", "ok": True},
-        "list_programs": {"programs": ["ls", "notepad.exe"]},
-    })
+    t = FakeTransport(
+        {
+            "analyze_binary": {"program": "ls", "ok": True},
+            "list_programs": {"programs": ["ls", "notepad.exe"]},
+        }
+    )
     c = GhidraMcpClient(transport=t)
     assert c.analyze_binary("/samples/ls")["program"] == "ls"
     assert t.calls[0][1] == {"binary_path": "/samples/ls", "force": False}
@@ -73,9 +76,14 @@ def test_http_transport_retries_then_succeeds():
     import urllib.request
 
     class FakeResp:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-        def read(self): return b'{"ok": true}'
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"ok": true}'
 
     def fake_urlopen(req, timeout=None):
         calls["n"] += 1

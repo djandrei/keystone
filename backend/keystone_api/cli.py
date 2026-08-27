@@ -1,4 +1,5 @@
 """Management CLI: `python -m keystone_api.cli [bootstrap|seed]`."""
+
 from __future__ import annotations
 
 import sys

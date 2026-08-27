@@ -1,4 +1,5 @@
 """Stage 3.1: VR triage — per-finding classification with CWE, budget cap."""
+
 from __future__ import annotations
 
 from keystone_engine.results import VRFinding
@@ -14,6 +15,7 @@ class StubAgent:
             risk_level = "high"
             cwe_id = "CWE-190"
             reasoning = f"Based on {rule}"
+
         return Pred()
 
 
@@ -42,10 +44,18 @@ def test_triage_signature_runs_with_fake_lm():
 
     from keystone_engine.llm.fake import fake_lm
 
-    dspy.configure(lm=fake_lm([
-        {"reasoning": "unchecked length feeds memcpy",
-         "classification": "true_positive", "risk_level": "high", "cwe_id": "CWE-190"}
-    ]))
+    dspy.configure(
+        lm=fake_lm(
+            [
+                {
+                    "reasoning": "unchecked length feeds memcpy",
+                    "classification": "true_positive",
+                    "risk_level": "high",
+                    "cwe_id": "CWE-190",
+                }
+            ]
+        )
+    )
     agent = make_triage_agent()
     out = triage_findings(FINDINGS[:1], lambda f: "memcpy(b,s,n)", agent)
     assert out[0].classification == "true_positive" and out[0].cwe_id == "CWE-190"

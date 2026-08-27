@@ -2,6 +2,7 @@
 
 Reads only — the uploaded sample is NEVER executed. Enough to label a row and
 feed platform classification; deep truth comes from Ghidra."""
+
 from __future__ import annotations
 
 import struct
@@ -30,7 +31,12 @@ def sniff(data: bytes) -> dict:
         return {"format": "PE", "arch": arch, "platform": "windows"}
 
     magic = data[:4]
-    if magic in (b"\xfe\xed\xfa\xce", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe"):
+    if magic in (
+        b"\xfe\xed\xfa\xce",
+        b"\xfe\xed\xfa\xcf",
+        b"\xcf\xfa\xed\xfe",
+        b"\xce\xfa\xed\xfe",
+    ):
         return {"format": "Mach-O", "arch": None, "platform": "apple"}
     if magic in (b"\xca\xfe\xba\xbe",):  # Mach-O fat (also Java class — ambiguous)
         return {"format": "Mach-O", "arch": "universal", "platform": "apple"}

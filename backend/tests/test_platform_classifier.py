@@ -1,4 +1,5 @@
 """Stage 2.3: layered platform classification (filename + import heuristic)."""
+
 from __future__ import annotations
 
 from keystone_engine.mcp import GhidraMcpClient
@@ -29,10 +30,22 @@ def test_simple_by_extension():
 
 
 def test_from_imports_scores_each_platform():
-    assert classify_platform_from_imports(["CreateFileA", "RegOpenKeyExW", "kernel32.dll"])["platform"] == "windows"
-    assert classify_platform_from_imports(["__libc_start_main", "pthread_create"])["platform"] == "linux"
-    assert classify_platform_from_imports(["_objc_msgSend", "CFStringCreateWithCString"])["platform"] == "apple"
-    assert classify_platform_from_imports(["__android_log_print", "JNI_OnLoad"])["platform"] == "android"
+    assert (
+        classify_platform_from_imports(["CreateFileA", "RegOpenKeyExW", "kernel32.dll"])["platform"]
+        == "windows"
+    )
+    assert (
+        classify_platform_from_imports(["__libc_start_main", "pthread_create"])["platform"]
+        == "linux"
+    )
+    assert (
+        classify_platform_from_imports(["_objc_msgSend", "CFStringCreateWithCString"])["platform"]
+        == "apple"
+    )
+    assert (
+        classify_platform_from_imports(["__android_log_print", "JNI_OnLoad"])["platform"]
+        == "android"
+    )
     assert classify_platform_from_imports(["some_generic_func"])["platform"] == "unknown"
 
 

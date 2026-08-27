@@ -2,13 +2,15 @@
 
 The PDF writer emits a valid single-page Type1/Courier document — enough to hand a
 reviewer a portable artifact without pulling in a heavy PDF toolchain."""
+
 from __future__ import annotations
 
 import json
-from typing import Any
 
 
-def report_json_bundle(analysis: dict, re_result: dict | None, findings: list[dict], report_md: str) -> bytes:
+def report_json_bundle(
+    analysis: dict, re_result: dict | None, findings: list[dict], report_md: str
+) -> bytes:
     bundle = {
         "analysis": analysis,
         "re_result": re_result,

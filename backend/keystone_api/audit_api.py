@@ -1,4 +1,5 @@
 """Admin audit-trail listing (filter by user/action/target/date, paginated)."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -33,9 +34,9 @@ def list_audit():  # type: ignore[no-untyped-def]
 
     if (user_id := request.args.get("user_id", type=int)) is not None:
         q = q.filter(AuditLog.user_id == user_id)
-    if (action := request.args.get("action")):
+    if action := request.args.get("action"):
         q = q.filter(AuditLog.action.ilike(f"%{action}%"))
-    if (target_type := request.args.get("target_type")):
+    if target_type := request.args.get("target_type"):
         q = q.filter(AuditLog.target_type == target_type)
     for field, is_from in (("date_from", True), ("date_to", False)):
         raw = request.args.get(field)
@@ -52,5 +53,9 @@ def list_audit():  # type: ignore[no-untyped-def]
     rows = q.order_by(AuditLog.id.desc()).limit(limit).offset(offset).all()
 
     ids = {r.user_id for r in rows if r.user_id is not None}
-    usernames = {u.id: u.username for u in db.query(User).filter(User.id.in_(ids)).all()} if ids else {}
-    return jsonify(items=[_public(r, usernames) for r in rows], total=total, limit=limit, offset=offset)
+    usernames = (
+        {u.id: u.username for u in db.query(User).filter(User.id.in_(ids)).all()} if ids else {}
+    )
+    return jsonify(
+        items=[_public(r, usernames) for r in rows], total=total, limit=limit, offset=offset
+    )

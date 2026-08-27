@@ -1,13 +1,26 @@
 """Stage 4.0: analysis history — filters, filename search, pagination, sort."""
+
 from __future__ import annotations
 
 from keystone_api import services
-from keystone_api.models import Analysis, AnalysisMode, AnalysisStatus, Binary, Role, Team, TeamMember, TeamRole, User
+from keystone_api.models import (
+    Analysis,
+    AnalysisMode,
+    AnalysisStatus,
+    Binary,
+    Role,
+    Team,
+    TeamMember,
+    TeamRole,
+    User,
+)
 from keystone_api.security import hash_password
 
 
 def _tok(client, u, p):
-    return client.post("/auth/login", json={"username": u, "password": p}).get_json()["access_token"]
+    return client.post("/auth/login", json={"username": u, "password": p}).get_json()[
+        "access_token"
+    ]
 
 
 def _h(t):
@@ -17,23 +30,57 @@ def _h(t):
 def _seed(session):
     services.bootstrap(session)
     t = Team(name="Blue")
-    ana = User(username="ana", email="a@x", password_hash=hash_password("pw123456"), role=Role.analyst)
-    bob = User(username="bob", email="b@x", password_hash=hash_password("pw123456"), role=Role.analyst)
+    ana = User(
+        username="ana", email="a@x", password_hash=hash_password("pw123456"), role=Role.analyst
+    )
+    bob = User(
+        username="bob", email="b@x", password_hash=hash_password("pw123456"), role=Role.analyst
+    )
     session.add_all([t, ana, bob])
     session.flush()
-    session.add_all([
-        TeamMember(team_id=t.id, user_id=ana.id, team_role=TeamRole.member),
-        TeamMember(team_id=t.id, user_id=bob.id, team_role=TeamRole.member),
-    ])
-    b1 = Binary(team_id=t.id, sha256="1" * 64, filename="notepad.exe", size=1, storage_key="k1", uploaded_by=ana.id)
-    b2 = Binary(team_id=t.id, sha256="2" * 64, filename="ksthunk.sys", size=1, storage_key="k2", uploaded_by=bob.id)
+    session.add_all(
+        [
+            TeamMember(team_id=t.id, user_id=ana.id, team_role=TeamRole.member),
+            TeamMember(team_id=t.id, user_id=bob.id, team_role=TeamRole.member),
+        ]
+    )
+    b1 = Binary(
+        team_id=t.id,
+        sha256="1" * 64,
+        filename="notepad.exe",
+        size=1,
+        storage_key="k1",
+        uploaded_by=ana.id,
+    )
+    b2 = Binary(
+        team_id=t.id,
+        sha256="2" * 64,
+        filename="ksthunk.sys",
+        size=1,
+        storage_key="k2",
+        uploaded_by=bob.id,
+    )
     session.add_all([b1, b2])
     session.flush()
     for i in range(5):
-        session.add(Analysis(team_id=t.id, binary_id=b1.id, mode=AnalysisMode.re,
-                             status=AnalysisStatus.succeeded, created_by=ana.id))
-    session.add(Analysis(team_id=t.id, binary_id=b2.id, mode=AnalysisMode.vr,
-                         status=AnalysisStatus.failed, created_by=bob.id))
+        session.add(
+            Analysis(
+                team_id=t.id,
+                binary_id=b1.id,
+                mode=AnalysisMode.re,
+                status=AnalysisStatus.succeeded,
+                created_by=ana.id,
+            )
+        )
+    session.add(
+        Analysis(
+            team_id=t.id,
+            binary_id=b2.id,
+            mode=AnalysisMode.vr,
+            status=AnalysisStatus.failed,
+            created_by=bob.id,
+        )
+    )
     session.commit()
     return t, ana, bob, b1, b2
 

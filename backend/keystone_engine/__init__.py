@@ -5,6 +5,7 @@ SQLAlchemy, no React: the worker adapts engine events/results to DB writes and
 Redis publishes. An import-lint test enforces the boundary so a CLI or a different
 UI could drive the same engine.
 """
+
 from .events import EventType, ProgressEvent
 from .results import Report, REResult, VRFinding
 

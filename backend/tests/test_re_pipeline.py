@@ -1,4 +1,5 @@
 """Stage 2.4: the RE pipeline — event sequence, result shape, decompile cache."""
+
 from __future__ import annotations
 
 from keystone_engine.events import EventType
@@ -14,8 +15,13 @@ class FakeMcp:
 
     def call(self, tool, args):
         if tool == "get_program_info":
-            return {"name": "ls", "executable_format": "ELF", "language_id": "x86:LE:64",
-                    "function_count": 3, "symbol_count": 10}
+            return {
+                "name": "ls",
+                "executable_format": "ELF",
+                "language_id": "x86:LE:64",
+                "function_count": 3,
+                "symbol_count": 10,
+            }
         if tool == "list_symbols" and args["kind"] == "import":
             return {"symbols": [{"name": "__libc_start_main"}, {"name": "printf"}]}
         if tool == "list_symbols" and args["kind"] == "export":
@@ -23,11 +29,31 @@ class FakeMcp:
         if tool == "list_strings":
             return {"strings": [{"value": "usage: ls"}]}
         if tool == "list_functions":
-            return {"functions": [
-                {"name": "main", "address": "0x1000", "size": 200, "is_thunk": False, "is_external": False},
-                {"name": "helper", "address": "0x1200", "size": 80, "is_thunk": False, "is_external": False},
-                {"name": "printf", "address": "0x1400", "size": 10, "is_thunk": True, "is_external": True},
-            ]}
+            return {
+                "functions": [
+                    {
+                        "name": "main",
+                        "address": "0x1000",
+                        "size": 200,
+                        "is_thunk": False,
+                        "is_external": False,
+                    },
+                    {
+                        "name": "helper",
+                        "address": "0x1200",
+                        "size": 80,
+                        "is_thunk": False,
+                        "is_external": False,
+                    },
+                    {
+                        "name": "printf",
+                        "address": "0x1400",
+                        "size": 10,
+                        "is_thunk": True,
+                        "is_external": True,
+                    },
+                ]
+            }
         if tool == "decompile_function":
             self.decompile_calls += 1
             fn = args["function"]
@@ -44,6 +70,7 @@ class FakeAnalyzer:
             key_functions = "main, helper"
             attack_surface = "argv parsing"
             language_runtime = "C"
+
         assert "ls" in overview and "main" in functions  # got real inputs
         return Pred()
 

@@ -7,6 +7,7 @@ Three layers, cheapest first:
 3. `make_platform_classifier` — a DSPy ReAct agent over MCP tools, for the hard
    `.gzf`/stripped/ambiguous cases. Exercised in integration.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -18,17 +19,48 @@ PLATFORMS = ("windows", "linux", "apple", "android", "unknown")
 # Substring indicators matched case-insensitively against import/library names.
 _INDICATORS: dict[str, tuple[str, ...]] = {
     "windows": (
-        "kernel32", "ntdll", "user32", "advapi32", "ws2_32", "gdi32", "ole32",
-        "shell32", "createfile", "regopenkey", "virtualalloc", "loadlibrary",
-        "getprocaddress", "winmain", "wincrt", "heapalloc", "createremotethread",
+        "kernel32",
+        "ntdll",
+        "user32",
+        "advapi32",
+        "ws2_32",
+        "gdi32",
+        "ole32",
+        "shell32",
+        "createfile",
+        "regopenkey",
+        "virtualalloc",
+        "loadlibrary",
+        "getprocaddress",
+        "winmain",
+        "wincrt",
+        "heapalloc",
+        "createremotethread",
     ),
     "linux": (
-        "__libc_start_main", "libc.so", "glibc", "gnu/libc", "dlopen", "pthread_",
-        "__cxa_", "__gmon_start__", "libpthread", "libdl", "libstdc++",
+        "__libc_start_main",
+        "libc.so",
+        "glibc",
+        "gnu/libc",
+        "dlopen",
+        "pthread_",
+        "__cxa_",
+        "__gmon_start__",
+        "libpthread",
+        "libdl",
+        "libstdc++",
     ),
     "apple": (
-        "_objc_", "objc_msgsend", "corefoundation", "__cfstring", "_nslog",
-        "dyld", "libsystem", "_dispatch_", "cfstringcreate", "libobjc",
+        "_objc_",
+        "objc_msgsend",
+        "corefoundation",
+        "__cfstring",
+        "_nslog",
+        "dyld",
+        "libsystem",
+        "_dispatch_",
+        "cfstringcreate",
+        "libobjc",
     ),
     "android": ("libandroid", "__android_log", "jni_", "art::", "libbinder", "dalvik"),
 }
@@ -41,11 +73,20 @@ def classify_platform_simple(binary_name: str) -> dict:
     if n.endswith((".sys", ".dll", ".exe")):
         return {"platform": "windows", "reasoning": "File extension indicates a Windows binary"}
     if n.endswith((".kext", ".dylib")):
-        return {"platform": "apple", "reasoning": "File extension (.kext/.dylib) indicates a macOS binary"}
+        return {
+            "platform": "apple",
+            "reasoning": "File extension (.kext/.dylib) indicates a macOS binary",
+        }
     if n.endswith((".ko", ".so")):
-        return {"platform": "linux", "reasoning": "File extension (.ko/.so) indicates a Linux binary"}
+        return {
+            "platform": "linux",
+            "reasoning": "File extension (.ko/.so) indicates a Linux binary",
+        }
     if n.endswith((".apk", ".dex")):
-        return {"platform": "android", "reasoning": "File extension (.apk/.dex) indicates an Android artifact"}
+        return {
+            "platform": "android",
+            "reasoning": "File extension (.apk/.dex) indicates an Android artifact",
+        }
     return {"platform": "unknown", "reasoning": "Could not classify from filename; inspect imports"}
 
 
@@ -64,7 +105,11 @@ def classify_platform_from_imports(names: list[str]) -> dict:
                     break
     best = max(scores, key=lambda p: scores[p])
     if scores[best] == 0:
-        return {"platform": "unknown", "reasoning": "No platform-specific imports found", "scores": scores}
+        return {
+            "platform": "unknown",
+            "reasoning": "No platform-specific imports found",
+            "scores": scores,
+        }
     evidence = ", ".join(sorted(set(hits[best]))[:5])
     return {
         "platform": best,
@@ -106,7 +151,10 @@ def classify_platform(
 
     if classifier is not None:
         pred = classifier(program=program)
-        return {"platform": getattr(pred, "platform", "unknown"), "reasoning": getattr(pred, "reasoning", "")}
+        return {
+            "platform": getattr(pred, "platform", "unknown"),
+            "reasoning": getattr(pred, "reasoning", ""),
+        }
 
     return {"platform": "unknown", "reasoning": "Inconclusive from filename and imports"}
 
@@ -125,7 +173,9 @@ def _platform_signature() -> Any:
         platform: str = dspy.OutputField(
             desc="One of: windows, linux, apple, android, unknown. Use 'unknown' only if evidence is insufficient."
         )
-        reasoning: str = dspy.OutputField(desc="Concise explanation citing specific imports/metadata")
+        reasoning: str = dspy.OutputField(
+            desc="Concise explanation citing specific imports/metadata"
+        )
 
     return McpPlatformSignature
 
@@ -152,5 +202,7 @@ def make_platform_classifier(client: GhidraMcpClient, *, max_iters: int = 5) -> 
         return ", ".join(f"{k}={info[k]}" for k in keys if k in info) or str(info)[:300]
 
     return dspy.ReAct(
-        _platform_signature(), tools=[list_imports, list_exports, program_metadata], max_iters=max_iters
+        _platform_signature(),
+        tools=[list_imports, list_exports, program_metadata],
+        max_iters=max_iters,
     )

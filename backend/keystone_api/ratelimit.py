@@ -2,12 +2,13 @@
 
 In-memory by default (fine for a single worker / dev); the limiter is injectable
 via app.config['RATE_LIMITER'] and disabled under TESTING unless a test opts in."""
+
 from __future__ import annotations
 
 import time
 from collections import defaultdict, deque
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable
 
 from flask import current_app, jsonify, request
 

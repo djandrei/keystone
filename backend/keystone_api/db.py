@@ -4,10 +4,11 @@ Shared by the API and (later) the Celery worker, so the engine lives here rather
 than bound to Flask. `init_db()` builds the engine from settings; tests call it
 with a SQLite URL. `session_scope()` gives a transactional block.
 """
+
 from __future__ import annotations
 
-from contextlib import contextmanager
 from collections.abc import Iterator
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine

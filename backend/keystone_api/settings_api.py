@@ -4,6 +4,7 @@ The LLM *key* is a deployment secret (config.llm_api_key) and is never stored in
 or returned from the database — only the endpoint URL and default model live in
 `system_settings`.
 """
+
 from __future__ import annotations
 
 import json
@@ -51,7 +52,9 @@ def probe_llm(url: str, api_key: str, timeout: float = 5.0) -> dict:
     endpoint = url.rstrip("/") + "/models"
     req = urllib.request.Request(endpoint, headers={"Authorization": f"Bearer {api_key}"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (admin-supplied URL)
+        with urllib.request.urlopen(
+            req, timeout=timeout
+        ) as resp:  # noqa: S310 (admin-supplied URL)
             payload = json.loads(resp.read().decode("utf-8"))
         models = [m.get("id") for m in payload.get("data", []) if isinstance(m, dict)]
         return {"ok": True, "models": [m for m in models if m]}
@@ -81,7 +84,14 @@ def put_settings_route():  # type: ignore[no-untyped-def]
     fields = {k: v for k, v in body.model_dump(exclude_none=True).items()}
     fields["updated_by"] = g.principal.user.id
     row = update_settings(db, **fields)
-    audit(db, g.principal, "settings.update", "system_settings", 1, {k: v for k, v in fields.items() if k != "updated_by"})
+    audit(
+        db,
+        g.principal,
+        "settings.update",
+        "system_settings",
+        1,
+        {k: v for k, v in fields.items() if k != "updated_by"},
+    )
     db.commit()
     return jsonify(_public(row))
 

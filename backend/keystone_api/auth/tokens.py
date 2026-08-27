@@ -1,9 +1,10 @@
 """JWT access tokens + DB-backed, rotating, revocable refresh tokens."""
+
 from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from sqlalchemy.orm import Session
@@ -13,12 +14,12 @@ from ..models import RefreshToken, TeamMember, User
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _aware(dt: datetime) -> datetime:
     """SQLite returns naive datetimes; treat naive as UTC for comparisons."""
-    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 
 def user_team_ids(session: Session, user_id: int) -> list[int]:

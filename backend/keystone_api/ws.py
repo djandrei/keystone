@@ -6,6 +6,7 @@ live events from the Redis `analysis:{id}` channel until a terminal event.
 
 The auth check and relay loop are separated from the Sock wiring so they unit-test
 without a real socket or Redis."""
+
 from __future__ import annotations
 
 import json

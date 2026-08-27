@@ -1,4 +1,5 @@
 """Stage 5.2: no N+1 on the hot list endpoint + a perf-smoke over many analyses."""
+
 from __future__ import annotations
 
 from sqlalchemy import event
@@ -32,18 +33,34 @@ def _seed_analyses(session, n):
     u = session.query(User).filter_by(username="admin").one()
     b = session.query(Binary).filter_by(team_id=team.id, sha256="a" * 64).first()
     if b is None:
-        b = Binary(team_id=team.id, sha256="a" * 64, filename="x", size=1, storage_key="k", uploaded_by=u.id)
+        b = Binary(
+            team_id=team.id,
+            sha256="a" * 64,
+            filename="x",
+            size=1,
+            storage_key="k",
+            uploaded_by=u.id,
+        )
         session.add(b)
         session.flush()
     for _ in range(n):
-        session.add(Analysis(team_id=team.id, binary_id=b.id, mode=AnalysisMode.re,
-                             status=AnalysisStatus.succeeded, created_by=u.id))
+        session.add(
+            Analysis(
+                team_id=team.id,
+                binary_id=b.id,
+                mode=AnalysisMode.re,
+                status=AnalysisStatus.succeeded,
+                created_by=u.id,
+            )
+        )
     session.commit()
     return u
 
 
 def _login(client):
-    return client.post("/auth/login", json={"username": "admin", "password": "change-me"}).get_json()["access_token"]
+    return client.post(
+        "/auth/login", json={"username": "admin", "password": "change-me"}
+    ).get_json()["access_token"]
 
 
 def test_list_analyses_is_not_n_plus_one(app, client, session):

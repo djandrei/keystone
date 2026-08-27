@@ -6,6 +6,7 @@ Create Date: 2026-08-27
 
 Back the M4 history/search hot paths (sort by recency, search by filename).
 """
+
 from __future__ import annotations
 
 from alembic import op

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from keystone_api import services
 from keystone_api.auth.apitokens import create_api_token
@@ -13,7 +13,9 @@ def _bootstrap(session):
 
 
 def _login(client):
-    return client.post("/auth/login", json={"username": "admin", "password": "change-me"}).get_json()
+    return client.post(
+        "/auth/login", json={"username": "admin", "password": "change-me"}
+    ).get_json()
 
 
 def test_create_and_authenticate_with_api_token(client, session):
@@ -38,16 +40,17 @@ def test_list_hides_secret_and_revoke(client, session):
     assert listing[0]["name"] == "ci"
     assert client.delete(f"/tokens/{created['id']}", headers=hdr).status_code == 200
     # revoked token no longer authenticates
-    assert client.get(
-        "/auth/me", headers={"Authorization": f"Bearer {created['token']}"}
-    ).status_code == 401
+    assert (
+        client.get("/auth/me", headers={"Authorization": f"Bearer {created['token']}"}).status_code
+        == 401
+    )
 
 
 def test_expired_api_token_rejected(client, session):
     _bootstrap(session)
     user = session.query(User).filter_by(username="admin").one()
     _, raw = create_api_token(
-        session, user, "old", expires_at=datetime.now(timezone.utc) - timedelta(days=1)
+        session, user, "old", expires_at=datetime.now(UTC) - timedelta(days=1)
     )
     session.commit()
     assert client.get("/auth/me", headers={"Authorization": f"Bearer {raw}"}).status_code == 401

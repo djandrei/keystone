@@ -1,4 +1,5 @@
 """require_auth — resolves a Bearer access JWT *or* a personal API token."""
+
 from __future__ import annotations
 
 from functools import wraps

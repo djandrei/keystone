@@ -1,13 +1,16 @@
 """Stage 4.3: admin audit-trail listing — filters, pagination, admin-only."""
+
 from __future__ import annotations
 
 from keystone_api import services
-from keystone_api.models import Role, Team, TeamMember, TeamRole, User
+from keystone_api.models import Role, User
 from keystone_api.security import hash_password
 
 
 def _tok(client, u, p):
-    return client.post("/auth/login", json={"username": u, "password": p}).get_json()["access_token"]
+    return client.post("/auth/login", json={"username": u, "password": p}).get_json()[
+        "access_token"
+    ]
 
 
 def _h(t):
@@ -37,14 +40,18 @@ def test_lists_audit_rows_with_username(app, client, session):
 def test_filter_by_action_and_pagination(app, client, session):
     admin = _seed(app, client, session)
     only_users = client.get("/audit?action=user.create", headers=_h(admin)).get_json()
-    assert only_users["total"] == 2 and all(r["action"] == "user.create" for r in only_users["items"])
+    assert only_users["total"] == 2 and all(
+        r["action"] == "user.create" for r in only_users["items"]
+    )
     page = client.get("/audit?limit=1", headers=_h(admin)).get_json()
     assert page["limit"] == 1 and len(page["items"]) == 1
 
 
 def test_audit_is_admin_only(app, client, session):
     _seed(app, client, session)
-    ana = User(username="ana", email="a@x", password_hash=hash_password("pw123456"), role=Role.analyst)
+    ana = User(
+        username="ana", email="a@x", password_hash=hash_password("pw123456"), role=Role.analyst
+    )
     session.add(ana)
     session.commit()
     assert client.get("/audit", headers=_h(_tok(client, "ana", "pw123456"))).status_code == 403

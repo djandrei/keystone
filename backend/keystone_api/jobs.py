@@ -4,19 +4,21 @@ and Redis publishes.
 `run_analysis_core` is deliberately framework-free and fully injectable so it unit-
 tests without Celery, Redis, Ghidra or an LLM. The Celery task in `worker.py`
 wires the real adapters (engine pipeline, MinIO persist, Redis publish/cancel)."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Callable, Iterator
+from collections.abc import Callable, Iterator
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
 from keystone_engine.events import ProgressEvent
+
 from .models import Analysis, AnalysisStatus
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 PipelineFn = Callable[[Analysis], Iterator[ProgressEvent]]

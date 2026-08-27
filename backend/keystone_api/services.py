@@ -1,4 +1,5 @@
 """Domain services: system settings + first-run bootstrap (idempotent)."""
+
 from __future__ import annotations
 
 from sqlalchemy.orm import Session

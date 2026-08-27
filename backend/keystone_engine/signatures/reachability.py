@@ -3,9 +3,11 @@ to judge whether an attacker-controlled entry point can actually reach it.
 
 A DSPy ReAct over ReachabilitySignature, run ONLY on true_positive / needs_review
 findings — clean findings pass through untouched."""
+
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from keystone_engine.mcp import GhidraMcpClient
 from keystone_engine.results import VRFinding
@@ -25,7 +27,9 @@ def _reachability_signature() -> Any:
         function_code: str = dspy.InputField(desc="Decompiled C of the affected function")
         function_name: str = dspy.InputField(desc="Name of the affected function")
         reachable: str = dspy.OutputField(desc="One of: yes, no, unknown")
-        entry_path: str = dspy.OutputField(desc="The call path from an entry point, or why unreachable")
+        entry_path: str = dspy.OutputField(
+            desc="The call path from an entry point, or why unreachable"
+        )
         confidence: str = dspy.OutputField(desc="One of: high, medium, low")
 
     return ReachabilitySignature
@@ -36,13 +40,17 @@ def make_reachability_agent(client: GhidraMcpClient, program: str, *, max_iters:
 
     from keystone_engine.pipelines.re_path import _make_re_tools
 
-    return dspy.ReAct(_reachability_signature(), tools=_make_re_tools(client, program), max_iters=max_iters)
+    return dspy.ReAct(
+        _reachability_signature(), tools=_make_re_tools(client, program), max_iters=max_iters
+    )
 
 
 CodeLookup = Callable[[VRFinding], str]
 
 
-def assess_reachability(findings: list[VRFinding], code_lookup: CodeLookup, agent: Any) -> list[VRFinding]:
+def assess_reachability(
+    findings: list[VRFinding], code_lookup: CodeLookup, agent: Any
+) -> list[VRFinding]:
     """Annotate suspicious findings with reachable / entry_path / confidence; leave
     clean (false_positive) findings unchanged."""
     out: list[VRFinding] = []

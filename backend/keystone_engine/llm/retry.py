@@ -4,9 +4,11 @@ Small models (e.g. MiniMax) intermittently emit malformed tool-call JSON that
 DSPy surfaces as `AdapterParseError`. A single re-sample usually clears it; an
 optional adapter fallback (e.g. force JSONAdapter) is the last resort before
 giving up."""
+
 from __future__ import annotations
 
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 T = TypeVar("T")
 

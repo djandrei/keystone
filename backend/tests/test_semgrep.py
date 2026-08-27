@@ -1,4 +1,5 @@
 """Stage 3.0: decompile-to-disk caching + Semgrep parse/group (fake runner)."""
+
 from __future__ import annotations
 
 from keystone_engine.mcp import GhidraMcpClient
@@ -17,24 +18,42 @@ class FakeMcp:
 
     def call(self, tool, args):
         if tool == "list_functions":
-            return {"functions": [
-                {"name": "main", "is_thunk": False, "is_external": False},
-                {"name": "parse_header", "is_thunk": False, "is_external": False},
-                {"name": "memcpy", "is_thunk": True, "is_external": True},
-            ]}
+            return {
+                "functions": [
+                    {"name": "main", "is_thunk": False, "is_external": False},
+                    {"name": "parse_header", "is_thunk": False, "is_external": False},
+                    {"name": "memcpy", "is_thunk": True, "is_external": True},
+                ]
+            }
         if tool == "decompile_function":
             self.decompile_calls += 1
             targets = args["function"] if isinstance(args["function"], list) else [args["function"]]
-            return {"results": [{"target": t, "c": f"void {t}(){{ int n = read(); char b[8]; memcpy(b,src,n); }}"} for t in targets]}
+            return {
+                "results": [
+                    {
+                        "target": t,
+                        "c": f"void {t}(){{ int n = read(); char b[8]; memcpy(b,src,n); }}",
+                    }
+                    for t in targets
+                ]
+            }
         return {}
 
 
 SEMGREP_JSON = {
     "results": [
-        {"check_id": "rules.c.security.integer-overflow", "path": "/d/parse_header.c",
-         "start": {"line": 3}, "extra": {"message": "possible integer overflow into memcpy"}},
-        {"check_id": "rules.c.security.integer-overflow", "path": "/d/main.c",
-         "start": {"line": 1}, "extra": {"message": "unchecked length"}},
+        {
+            "check_id": "rules.c.security.integer-overflow",
+            "path": "/d/parse_header.c",
+            "start": {"line": 3},
+            "extra": {"message": "possible integer overflow into memcpy"},
+        },
+        {
+            "check_id": "rules.c.security.integer-overflow",
+            "path": "/d/main.c",
+            "start": {"line": 1},
+            "extra": {"message": "unchecked length"},
+        },
     ]
 }
 

@@ -1,9 +1,10 @@
 """Personal API tokens for external/programmatic clients (opaque, hashed)."""
+
 from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -27,8 +28,11 @@ def create_api_token(
 ) -> tuple[ApiToken, str]:
     raw = PREFIX + secrets.token_urlsafe(32)
     tok = ApiToken(
-        user_id=user.id, name=name, token_hash=_hash(raw),
-        scopes=scopes, expires_at=expires_at,
+        user_id=user.id,
+        name=name,
+        token_hash=_hash(raw),
+        scopes=scopes,
+        expires_at=expires_at,
     )
     session.add(tok)
     session.flush()
@@ -36,7 +40,12 @@ def create_api_token(
 
 
 def list_api_tokens(session: Session, user: User) -> list[ApiToken]:
-    return session.query(ApiToken).filter_by(user_id=user.id).order_by(ApiToken.created_at.desc()).all()
+    return (
+        session.query(ApiToken)
+        .filter_by(user_id=user.id)
+        .order_by(ApiToken.created_at.desc())
+        .all()
+    )
 
 
 def revoke_api_token(session: Session, user: User, token_id: int) -> bool:
@@ -53,10 +62,10 @@ def resolve_api_token(session: Session, raw: str) -> Principal | None:
     tok = session.query(ApiToken).filter_by(token_hash=_hash(raw)).first()
     if tok is None:
         return None
-    if tok.expires_at is not None and _aware(tok.expires_at) <= datetime.now(timezone.utc):
+    if tok.expires_at is not None and _aware(tok.expires_at) <= datetime.now(UTC):
         return None
     user = session.get(User, tok.user_id)
     if user is None or not user.is_active:
         return None
-    tok.last_used_at = datetime.now(timezone.utc)
+    tok.last_used_at = datetime.now(UTC)
     return Principal(user=user, role=user.role, team_ids=user_team_ids(session, user.id))

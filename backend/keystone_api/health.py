@@ -1,4 +1,5 @@
 """Liveness, readiness (dependency checks) and lightweight metrics."""
+
 from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify
@@ -61,7 +62,9 @@ def metrics():  # type: ignore[no-untyped-def]
     from sqlalchemy import func
 
     db = get_db()
-    counts = dict(db.query(Analysis.status, func.count(Analysis.id)).group_by(Analysis.status).all())
+    counts = dict(
+        db.query(Analysis.status, func.count(Analysis.id)).group_by(Analysis.status).all()
+    )
     by_status = {s.value: int(counts.get(s, 0)) for s in AnalysisStatus}
 
     rows = (

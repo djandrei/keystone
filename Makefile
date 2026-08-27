@@ -1,7 +1,7 @@
 COMPOSE = docker compose -f infra/docker-compose.yml
 COMPOSE_E2E = $(COMPOSE) -f infra/docker-compose.e2e.yml
 
-.PHONY: up down logs ps build test test-be test-fe lint migrate seed bootstrap e2e engine-fake audit
+.PHONY: up down logs ps build test test-be test-fe lint migrate seed bootstrap e2e engine-fake audit ci ci-be ci-fe typecheck-be
 
 up:        ; $(COMPOSE) up --build
 down:      ; $(COMPOSE) down
@@ -13,9 +13,19 @@ test: test-be test-fe
 test-be:   ; $(COMPOSE) run --rm backend pytest
 test-fe:   ; $(COMPOSE) run --rm frontend npm test
 
+# Enforced gate: ruff + black + eslint + tsc. (mypy is advisory — `make typecheck-be`.)
 lint:
-	$(COMPOSE) run --rm backend sh -c "ruff check . && black --check . && mypy keystone_api"
+	$(COMPOSE) run --rm backend sh -c "ruff check . && black --check ."
 	$(COMPOSE) run --rm frontend sh -c "npm run lint && npm run typecheck"
+
+typecheck-be:  ; -$(COMPOSE) run --rm backend mypy keystone_api
+
+# Full CI gate (lint + typecheck + tests + coverage + build). CI can call `make ci`.
+ci: ci-be ci-fe
+ci-be:
+	$(COMPOSE) run --rm backend sh -c "ruff check . && black --check . && pytest --cov=keystone_api --cov=keystone_engine --cov-fail-under=80"
+ci-fe:
+	$(COMPOSE) run --rm frontend sh -c "npm run typecheck && npm run lint && npm test && npm run build"
 
 migrate:   ; $(COMPOSE) run --rm backend alembic upgrade head
 seed:      ; $(COMPOSE) run --rm backend python -m keystone_api.cli seed

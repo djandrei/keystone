@@ -3,9 +3,11 @@ true_positive / false_positive / needs_review, with a risk level and a CWE.
 
 A ChainOfThought over TriageSignature; the per-finding loop honors a budget cap so
 a noisy scan can't blow the LLM budget."""
+
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from keystone_engine.results import VRFinding
 
@@ -21,8 +23,12 @@ def _triage_signature() -> Any:
         finding_message: str = dspy.InputField(desc="The Semgrep finding message")
         code: str = dspy.InputField(desc="Decompiled C of the function the finding is in")
         rule: str = dspy.InputField(desc="The Semgrep rule id that fired")
-        classification: str = dspy.OutputField(desc="One of: true_positive, false_positive, needs_review")
-        risk_level: str = dspy.OutputField(desc="One of: critical, high, medium, low, informational")
+        classification: str = dspy.OutputField(
+            desc="One of: true_positive, false_positive, needs_review"
+        )
+        risk_level: str = dspy.OutputField(
+            desc="One of: critical, high, medium, low, informational"
+        )
         cwe_id: str = dspy.OutputField(desc="CWE id like CWE-190, or empty if not applicable")
         reasoning: str = dspy.OutputField(desc="Concise justification grounded in the code")
 
@@ -51,7 +57,9 @@ def triage_findings(
     for i, f in enumerate(findings):
         if budget is not None and i >= budget:
             break
-        pred = agent(finding_message=f.semgrep_message or "", code=code_lookup(f), rule=f.rule or "")
+        pred = agent(
+            finding_message=f.semgrep_message or "", code=code_lookup(f), rule=f.rule or ""
+        )
         cwe = getattr(pred, "cwe_id", None) or None
         results.append(
             f.model_copy(

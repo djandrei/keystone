@@ -1,14 +1,17 @@
 """Observability: structured JSON request logs, a Sentry-compatible error hook,
 readiness checks and lightweight metrics."""
+
 from __future__ import annotations
 
 import logging
 import time
 
-from flask import current_app, g, request
+from flask import g, request
 
 
-def build_request_log(method: str, path: str, status: int, duration_ms: float, request_id: str | None = None) -> dict:
+def build_request_log(
+    method: str, path: str, status: int, duration_ms: float, request_id: str | None = None
+) -> dict:
     """The structured fields for one request — pure, so it's easy to assert on."""
     fields = {
         "event": "request",
@@ -66,5 +69,10 @@ def register_observability(app) -> None:  # type: ignore[no-untyped-def]
         start = getattr(g, "_start", None)
         if start is not None:
             duration_ms = (time.perf_counter() - start) * 1000
-            log.info("request", extra=build_request_log(request.method, request.path, resp.status_code, duration_ms))
+            log.info(
+                "request",
+                extra=build_request_log(
+                    request.method, request.path, resp.status_code, duration_ms
+                ),
+            )
         return resp

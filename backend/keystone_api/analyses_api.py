@@ -1,6 +1,7 @@
 """Analysis lifecycle over HTTP: start (per binary), list/read (team-scoped),
 fetch the report artifact, and cancel. Enqueue + cancel-signal are injectable
 (app.config) so the API tests need no Celery/Redis."""
+
 from __future__ import annotations
 
 from flask import Blueprint, Response, current_app, g, jsonify, request
@@ -9,10 +10,10 @@ from .audit import audit
 from .auth.deps import require_auth
 from .config import get_settings
 from .context import get_db
+from .export import report_json_bundle, text_to_pdf
 from .models import Analysis, AnalysisMode, AnalysisStatus, Binary, Report, Role, VRFinding
 from .rbac import can_access_team, require_role, scope_to_teams
 from .services import get_or_create_settings
-from .export import report_json_bundle, text_to_pdf
 from .storage import ObjectStore, get_object_store
 
 analyses_bp = Blueprint("analyses", __name__)
@@ -41,7 +42,9 @@ def _signal_cancel(analysis_id: int) -> None:
         return
     import redis
 
-    redis.Redis.from_url(get_settings().redis_url).set(f"analysis:{analysis_id}:cancel", "1", ex=3600)
+    redis.Redis.from_url(get_settings().redis_url).set(
+        f"analysis:{analysis_id}:cancel", "1", ex=3600
+    )
 
 
 def _signal_rule(analysis_id: int, rule: str) -> None:
@@ -51,7 +54,9 @@ def _signal_rule(analysis_id: int, rule: str) -> None:
         return
     import redis
 
-    redis.Redis.from_url(get_settings().redis_url).set(f"analysis:{analysis_id}:rule", rule, ex=3600)
+    redis.Redis.from_url(get_settings().redis_url).set(
+        f"analysis:{analysis_id}:rule", rule, ex=3600
+    )
 
 
 def _finding_public(f: VRFinding) -> dict:
@@ -130,7 +135,14 @@ def start_analysis(binary_id: int):  # type: ignore[no-untyped-def]
     )
     db.add(analysis)
     db.flush()
-    audit(db, g.principal, "analysis.start", "analysis", analysis.id, {"mode": mode.value, "binary_id": binary.id})
+    audit(
+        db,
+        g.principal,
+        "analysis.start",
+        "analysis",
+        analysis.id,
+        {"mode": mode.value, "binary_id": binary.id},
+    )
     db.commit()
     _enqueue(analysis.id)
     return jsonify(_public(analysis)), 201
@@ -155,12 +167,12 @@ def list_analyses():  # type: ignore[no-untyped-def]
         val = request.args.get(field, type=int)
         if val is not None:
             q = q.filter(col == val)
-    if (mode := request.args.get("mode")):
+    if mode := request.args.get("mode"):
         try:
             q = q.filter(Analysis.mode == AnalysisMode(mode))
         except ValueError:
             return jsonify(error="invalid_mode"), 400
-    if (status := request.args.get("status")):
+    if status := request.args.get("status"):
         try:
             q = q.filter(Analysis.status == AnalysisStatus(status))
         except ValueError:
@@ -173,8 +185,10 @@ def list_analyses():  # type: ignore[no-untyped-def]
             except ValueError:
                 return jsonify(error=f"invalid_{field}"), 400
             q = q.filter(Analysis.created_at >= dt if op == ">=" else Analysis.created_at <= dt)
-    if (term := request.args.get("q")):
-        q = q.join(Binary, Analysis.binary_id == Binary.id).filter(Binary.filename.ilike(f"%{term}%"))
+    if term := request.args.get("q"):
+        q = q.join(Binary, Analysis.binary_id == Binary.id).filter(
+            Binary.filename.ilike(f"%{term}%")
+        )
 
     total = q.count()
 
@@ -187,11 +201,17 @@ def list_analyses():  # type: ignore[no-untyped-def]
     items = q.limit(limit).offset(offset).all()
 
     from .models import User
+
     ids = {a.created_by for a in items}
-    usernames = {u.id: u.username for u in db.query(User).filter(User.id.in_(ids)).all()} if ids else {}
+    usernames = (
+        {u.id: u.username for u in db.query(User).filter(User.id.in_(ids)).all()} if ids else {}
+    )
 
     return jsonify(
-        items=[_public(a, usernames=usernames) for a in items], total=total, limit=limit, offset=offset
+        items=[_public(a, usernames=usernames) for a in items],
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -205,8 +225,13 @@ def get_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
     if not can_access_team(g.principal, a.team_id):
         return jsonify(error="forbidden"), 403
     from .models import User
+
     creator = db.get(User, a.created_by)
-    return jsonify(_public(a, with_result=True, usernames={a.created_by: creator.username} if creator else None))
+    return jsonify(
+        _public(
+            a, with_result=True, usernames={a.created_by: creator.username} if creator else None
+        )
+    )
 
 
 @analyses_bp.get("/analyses/<int:analysis_id>/report")
@@ -301,7 +326,9 @@ def export_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
         )
     if fmt == "json":
         re_result = _public(a, with_result=True).get("re_result")
-        findings = [_finding_public(f) for f in db.query(VRFinding).filter_by(analysis_id=analysis_id).all()]
+        findings = [
+            _finding_public(f) for f in db.query(VRFinding).filter_by(analysis_id=analysis_id).all()
+        ]
         bundle = report_json_bundle(_public(a), re_result, findings, report_md)
         return Response(
             bundle,

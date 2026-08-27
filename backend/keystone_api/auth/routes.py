@@ -1,14 +1,15 @@
 """Auth blueprint: login, refresh, logout, me, password."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from flask import Blueprint, g, jsonify, request
 from pydantic import ValidationError
 
 from ..context import get_db
-from ..ratelimit import rate_limit
 from ..models import User
+from ..ratelimit import rate_limit
 from ..security import hash_password, verify_password
 from .deps import require_auth
 from .schemas import LoginRequest, LogoutRequest, PasswordChangeRequest, RefreshRequest
@@ -51,7 +52,7 @@ def login():  # type: ignore[no-untyped-def]
     user = db.query(User).filter_by(username=data.username).first()
     if user is None or not user.is_active or not verify_password(user.password_hash, data.password):
         return jsonify(error="invalid_credentials"), 401
-    user.last_login_at = datetime.now(timezone.utc)
+    user.last_login_at = datetime.now(UTC)
     resp = _tokens(db, user)
     db.commit()
     return jsonify(resp)

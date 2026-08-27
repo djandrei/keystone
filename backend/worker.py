@@ -2,6 +2,7 @@
 
 Wires the real adapters (engine pipeline + Ghidra import, MinIO persist, Redis
 publish/cancel) into the framework-free `run_analysis_core`."""
+
 from __future__ import annotations
 
 import json
@@ -16,9 +17,9 @@ from keystone_api.models import Analysis, AnalysisMode, Binary
 from keystone_api.persist import persist_re_result, persist_vr_result
 from keystone_api.services import get_or_create_settings
 from keystone_api.storage import get_object_store
+from keystone_engine.events import EventType, ProgressEvent
 from keystone_engine.llm import configure_lm, make_lm
 from keystone_engine.mcp import GhidraMcpClient
-from keystone_engine.events import EventType, ProgressEvent
 from keystone_engine.pipelines import BinaryRef, re_path
 from keystone_engine.results import Report, REResult, VRFinding
 
@@ -50,6 +51,7 @@ def _is_canceled(analysis_id: int) -> bool:
 
 def _make_rule_resolver(analysis_id: int, timeout: int = 300, interval: int = 2):
     """Block until the user POSTs a rule selection (Redis key), else auto-pick."""
+
     def resolve(counts: dict) -> str | None:
         r = _redis()
         key = f"analysis:{analysis_id}:rule"
@@ -73,9 +75,13 @@ def _fake_pipeline(_a):
     yield ProgressEvent.step_finish("decompile", 4, count=2)
     yield ProgressEvent.step_start("analyze", 5)
     result = REResult(
-        binary_type="cli_tool", purpose="Deterministic fake analysis for the M2 e2e.",
-        key_functions="main", attack_surface="argv parsing", language_runtime="C",
-        tool_calls=2, raw={"fake": True},
+        binary_type="cli_tool",
+        purpose="Deterministic fake analysis for the M2 e2e.",
+        key_functions="main",
+        attack_surface="argv parsing",
+        language_runtime="C",
+        tool_calls=2,
+        raw={"fake": True},
     )
     report = Report(format="md", content="# RE Analysis\n\n**Language / runtime:** C\n")
     yield ProgressEvent.step_finish("analyze", 6, language_runtime="C")
@@ -85,6 +91,7 @@ def _fake_pipeline(_a):
 
 def _fake_vr_pipeline(analysis_id: int, params: dict):
     """Deterministic canned VR run with the interactive rule pick (engine_fake)."""
+
     def gen(_a):
         counts = {"kernel-integer-wraparound": 2, "format-string": 1}
         yield ProgressEvent.step_start("decompile", 1)
@@ -95,7 +102,9 @@ def _fake_vr_pipeline(analysis_id: int, params: dict):
         if params.get("rule"):
             chosen = params["rule"]
         elif params.get("interactive"):
-            yield ProgressEvent(type=EventType.needs_input, seq=6, step="rule_pick", data={"classes": counts})
+            yield ProgressEvent(
+                type=EventType.needs_input, seq=6, step="rule_pick", data={"classes": counts}
+            )
             chosen = _make_rule_resolver(analysis_id)(counts)
         else:
             chosen = max(counts, key=lambda k: counts[k])
@@ -105,15 +114,35 @@ def _fake_vr_pipeline(analysis_id: int, params: dict):
         yield ProgressEvent.step_start("reachability", 10)
         yield ProgressEvent.step_finish("reachability", 11, assessed=1)
         findings = [
-            VRFinding(rule=chosen, file="parse_header.c", line=3, semgrep_message="unchecked length into memcpy",
-                      classification="true_positive", risk_level="high", cwe_id="CWE-190",
-                      reasoning="length is attacker-controlled and feeds memcpy without a bound check",
-                      reachable="yes", entry_path="DriverIoControl -> parse_header", confidence="high"),
-            VRFinding(rule=chosen, file="log.c", line=8, semgrep_message="benign",
-                      classification="false_positive", risk_level="informational"),
+            VRFinding(
+                rule=chosen,
+                file="parse_header.c",
+                line=3,
+                semgrep_message="unchecked length into memcpy",
+                classification="true_positive",
+                risk_level="high",
+                cwe_id="CWE-190",
+                reasoning="length is attacker-controlled and feeds memcpy without a bound check",
+                reachable="yes",
+                entry_path="DriverIoControl -> parse_header",
+                confidence="high",
+            ),
+            VRFinding(
+                rule=chosen,
+                file="log.c",
+                line=8,
+                semgrep_message="benign",
+                classification="false_positive",
+                risk_level="informational",
+            ),
         ]
-        report = Report(format="md", content=f"# VR Analysis\n\n**Rule class:** {chosen}\n\nCWE-190 in parse_header\n")
-        yield ProgressEvent(type=EventType.done, seq=12, step="done", data={"findings": len(findings)})
+        report = Report(
+            format="md",
+            content=f"# VR Analysis\n\n**Rule class:** {chosen}\n\nCWE-190 in parse_header\n",
+        )
+        yield ProgressEvent(
+            type=EventType.done, seq=12, step="done", data={"findings": len(findings)}
+        )
         return (findings, report)
 
     return gen
@@ -132,11 +161,15 @@ def run_analysis(analysis_id: int) -> str:
 
         sysset = get_or_create_settings(session)
         if sysset.llm_endpoint_url and sysset.default_model:
-            configure_lm(make_lm(sysset.llm_endpoint_url, sysset.default_model, settings.llm_api_key))
+            configure_lm(
+                make_lm(sysset.llm_endpoint_url, sysset.default_model, settings.llm_api_key)
+            )
         store = get_object_store()
 
         sample_path = f"{settings.sample_dir}/{binary.sha256}_{binary.ghidra_program_name}"
-        ref = BinaryRef(program=binary.ghidra_program_name, sha256=binary.sha256, filename=binary.filename)
+        ref = BinaryRef(
+            program=binary.ghidra_program_name, sha256=binary.sha256, filename=binary.filename
+        )
 
         if settings.engine_fake:
             if analysis.mode is AnalysisMode.vr:
@@ -146,8 +179,12 @@ def run_analysis(analysis_id: int) -> str:
                 pipeline = _fake_pipeline
                 persist = lambda s, a, r: persist_re_result(s, a, r, store=store)
             status = run_analysis_core(
-                analysis_id, session, pipeline=pipeline, persist=persist,
-                publish=_publish, is_canceled=_is_canceled,
+                analysis_id,
+                session,
+                pipeline=pipeline,
+                persist=persist,
+                publish=_publish,
+                is_canceled=_is_canceled,
             )
             return status.value
 
@@ -170,7 +207,12 @@ def run_analysis(analysis_id: int) -> str:
                 persist_re_result(s, a, result, store=store)
 
         status = run_analysis_core(
-            analysis_id, session, pipeline=pipeline, persist=persist, publish=_publish, is_canceled=_is_canceled
+            analysis_id,
+            session,
+            pipeline=pipeline,
+            persist=persist,
+            publish=_publish,
+            is_canceled=_is_canceled,
         )
         return status.value
     finally:

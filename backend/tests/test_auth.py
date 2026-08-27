@@ -23,7 +23,9 @@ def test_login_success(client, session):
 
 def test_login_wrong_password(client, session):
     _bootstrap(session)
-    assert client.post("/auth/login", json={"username": "admin", "password": "no"}).status_code == 401
+    assert (
+        client.post("/auth/login", json={"username": "admin", "password": "no"}).status_code == 401
+    )
 
 
 def test_me_requires_and_returns_identity(client, session):

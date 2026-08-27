@@ -3,6 +3,7 @@
 Deliberately mirror the DB columns (keystone_api.models) field-for-field, but carry
 no ORM: the worker maps these onto SQLAlchemy rows at the boundary.
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel

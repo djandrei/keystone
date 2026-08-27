@@ -1,22 +1,23 @@
 """Keystone API — Flask application factory."""
+
 from __future__ import annotations
 
 from flask import Flask
 
-from .config import Settings, get_settings
-from .db import init_db
-from .health import health_bp
-from .auth import auth_bp
-from .tokens_api import tokens_bp
-from .users_api import users_bp
-from .teams_api import teams_bp
-from .settings_api import settings_bp
-from .binaries_api import binaries_bp
 from .analyses_api import analyses_bp
 from .audit_api import audit_bp
+from .auth import auth_bp
+from .binaries_api import binaries_bp
+from .config import Settings, get_settings
 from .context import register_db
-from .ws import register_ws
+from .db import init_db
+from .health import health_bp
 from .observability import register_observability
+from .settings_api import settings_bp
+from .teams_api import teams_bp
+from .tokens_api import tokens_bp
+from .users_api import users_bp
+from .ws import register_ws
 
 __all__ = ["create_app", "Settings", "get_settings"]
 
