@@ -5,6 +5,7 @@ import { LogOut, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Wordmark } from "@/components/brand/Wordmark";
 import { TeamSwitcher } from "./TeamSwitcher";
+import { RunningIndicator } from "./RunningIndicator";
 import { Badge } from "@/components/ui/badge";
 import { visibleNav, type Role } from "./nav";
 
@@ -13,7 +14,7 @@ export interface TopBarUser {
   role: Role;
 }
 
-export function TopBar({ user, onLogout }: { user: TopBarUser; onLogout: () => void }) {
+export function TopBar({ user, onLogout, running = 0 }: { user: TopBarUser; onLogout: () => void; running?: number }) {
   const items = visibleNav(user.role);
   const initials = user.username.slice(0, 2).toUpperCase();
 
@@ -44,6 +45,7 @@ export function TopBar({ user, onLogout }: { user: TopBarUser; onLogout: () => v
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
+          <RunningIndicator running={running} />
           <TeamSwitcher />
           <DropdownMenu.Root>
             <DropdownMenu.Trigger
