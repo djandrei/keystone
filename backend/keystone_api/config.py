@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     admin_email: str = "admin@keystone.local"
     admin_password: str = "change-me"
 
+    # --- uploads / storage (M2.5) ---
+    upload_max_bytes: int = 104_857_600  # 100 MiB
+    sample_dir: str = "/samples"  # shared volume where uploads are written for Ghidra import
+
     # --- ghidra-headless-mcp (M2) ---
     mcp_endpoint: str = "http://ghidra-mcp:1341"
 

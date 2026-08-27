@@ -57,7 +57,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       minio: { condition: service_healthy }
-    volumes: ["../backend:/app"]
+    volumes: ["../backend:/app", "samples:/samples"]
     expose: ["8000"]
 
   frontend:
@@ -78,7 +78,7 @@ services:
     environment:
       GHIDRA_INSTALL_DIR: /ghidra
     expose: ["1341"]
-    volumes: [ghidra-projects:/projects]
+    volumes: [ghidra-projects:/projects, "samples:/samples"]
 
   worker:
     build: ../backend
@@ -86,10 +86,11 @@ services:
     <<: *backend-env
     depends_on:
       redis: { condition: service_healthy }
-    volumes: ["../backend:/app"]
+    volumes: ["../backend:/app", "samples:/samples"]
     command: ["celery", "-A", "worker.app", "worker", "--loglevel=info"]
 
 volumes:
   pgdata:
   miniodata:
   ghidra-projects:
+  samples:
