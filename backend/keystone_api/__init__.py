@@ -1,0 +1,22 @@
+"""Keystone API — Flask application factory."""
+from __future__ import annotations
+
+from flask import Flask
+
+from .config import Settings, get_settings
+from .health import health_bp
+
+__all__ = ["create_app", "Settings", "get_settings"]
+
+
+def create_app(settings: Settings | None = None) -> Flask:
+    """Build and configure the Keystone Flask app."""
+    settings = settings or get_settings()
+
+    app = Flask(__name__)
+    app.config["KEYSTONE"] = settings
+    app.config["TESTING"] = settings.env == "test"
+
+    app.register_blueprint(health_bp)
+
+    return app
