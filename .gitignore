@@ -18,3 +18,7 @@ coverage/
 *.local
 # OS
 .DS_Store
+
+# TLS certs (generated) + backups
+infra/certs/
+backups/

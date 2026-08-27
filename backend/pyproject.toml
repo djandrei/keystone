@@ -23,6 +23,10 @@ dependencies = [
 
 [project.optional-dependencies]
 # Added incrementally as milestones need them (DB, auth, jobs, storage).
+prod = [
+    "gunicorn>=21.2",
+    "gevent>=23.9",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
