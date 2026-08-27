@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     s3_secret_key: str = "keystone-dev-secret"
 
     # --- auth / JWT (M1.4) ---
-    jwt_secret: str = "change-me-in-prod"
+    jwt_secret: str = "dev-insecure-secret-change-me-in-production-0123456789"
     access_ttl_min: int = 15
     refresh_ttl_days: int = 14
 
