@@ -93,7 +93,7 @@ services:
     depends_on:
       redis: { condition: service_healthy }
     volumes: ["../backend:/app", "samples:/samples"]
-    command: ["celery", "-A", "worker.app", "worker", "--loglevel=info"]
+    command: ["celery", "-A", "worker.app", "worker", "--loglevel=info", "--concurrency=4"]
 
 volumes:
   pgdata:

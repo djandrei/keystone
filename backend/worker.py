@@ -24,6 +24,14 @@ from keystone_engine.results import Report, REResult, VRFinding
 
 settings = get_settings()
 app = Celery("keystone", broker=settings.redis_url, backend=settings.redis_url)
+# One long analysis per worker slot at a time; ack after completion so a crashed
+# worker's task is redelivered rather than lost.
+app.conf.update(
+    worker_prefetch_multiplier=1,
+    task_acks_late=True,
+    task_track_started=True,
+    broker_connection_retry_on_startup=True,
+)
 
 
 def _redis():  # type: ignore[no-untyped-def]
