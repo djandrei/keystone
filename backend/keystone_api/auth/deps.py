@@ -1,7 +1,4 @@
-"""require_auth decorator — resolves a Bearer access JWT into a Principal.
-
-API-token resolution (personal access tokens) is layered on in M1.5.
-"""
+"""require_auth — resolves a Bearer access JWT *or* a personal API token."""
 from __future__ import annotations
 
 from functools import wraps
@@ -11,8 +8,23 @@ from flask import g, request
 
 from ..context import get_db
 from ..models import Role, User
+from .apitokens import PREFIX, resolve_api_token
 from .principal import Principal
 from .tokens import decode_access_token, user_team_ids
+
+
+def _from_jwt(token: str) -> Principal | None:
+    try:
+        payload = decode_access_token(token)
+    except jwt.PyJWTError:
+        return None
+    if payload.get("type") != "access":
+        return None
+    db = get_db()
+    user = db.get(User, int(payload["sub"]))
+    if user is None or not user.is_active:
+        return None
+    return Principal(user=user, role=Role(payload["role"]), team_ids=user_team_ids(db, user.id))
 
 
 def resolve_principal() -> Principal | None:
@@ -20,18 +32,13 @@ def resolve_principal() -> Principal | None:
     if not auth.startswith("Bearer "):
         return None
     token = auth[7:]
-    try:
-        payload = decode_access_token(token)
-    except jwt.PyJWTError:
-        return None
-    if payload.get("type") != "access":
-        return None
-
-    db = get_db()
-    user = db.get(User, int(payload["sub"]))
-    if user is None or not user.is_active:
-        return None
-    return Principal(user=user, role=Role(payload["role"]), team_ids=user_team_ids(db, user.id))
+    if token.startswith(PREFIX):
+        db = get_db()
+        principal = resolve_api_token(db, token)
+        if principal is not None:
+            db.commit()  # persist last_used_at
+        return principal
+    return _from_jwt(token)
 
 
 def require_auth(fn):  # type: ignore[no-untyped-def]
