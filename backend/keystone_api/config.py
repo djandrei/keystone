@@ -1,7 +1,8 @@
-"""Typed application configuration (env-driven).
+"""Typed application configuration (env-driven, `KEYSTONE_` prefix).
 
-Kept intentionally small for M1.0; DB / Redis / MinIO / JWT / LLM settings are
-added in later stages (1.2–1.4) as the features that need them land.
+Front-loads the settings later stages need (DB, Redis, S3, JWT, admin bootstrap,
+MCP, LLM key) so those stages consume config rather than re-editing this file.
+Non-secret defaults match `infra/.env.example` for a friction-free dev up.
 """
 from __future__ import annotations
 
@@ -15,8 +16,37 @@ class Settings(BaseSettings):
         env_prefix="KEYSTONE_", env_file=".env", extra="ignore"
     )
 
+    # --- app ---
     env: str = "development"
     service_name: str = "keystone-api"
+
+    # --- database ---
+    database_url: str = "postgresql+psycopg://keystone:keystone@postgres:5432/keystone"
+
+    # --- redis / jobs (M2) ---
+    redis_url: str = "redis://redis:6379/0"
+
+    # --- object storage / MinIO (M2) ---
+    s3_endpoint: str = "http://minio:9000"
+    s3_bucket: str = "keystone"
+    s3_access_key: str = "keystone"
+    s3_secret_key: str = "keystone-dev-secret"
+
+    # --- auth / JWT (M1.4) ---
+    jwt_secret: str = "change-me-in-prod"
+    access_ttl_min: int = 15
+    refresh_ttl_days: int = 14
+
+    # --- first-run admin bootstrap (M1.3) ---
+    admin_username: str = "admin"
+    admin_email: str = "admin@keystone.local"
+    admin_password: str = "change-me"
+
+    # --- ghidra-headless-mcp (M2) ---
+    mcp_endpoint: str = "http://ghidra-mcp:1341"
+
+    # --- LLM (endpoint + default model live in system_settings; key is a secret) ---
+    llm_api_key: str = ""
 
 
 @lru_cache
