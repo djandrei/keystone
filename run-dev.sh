@@ -66,6 +66,10 @@ fi
 echo "==> building and starting the core stack"
 $COMPOSE up -d --build
 
+# nginx resolves its upstreams (backend/frontend) once at startup; if a rebuild
+# gave them new container IPs, restart nginx so it re-resolves (else 502).
+$COMPOSE restart nginx >/dev/null 2>&1 || true
+
 # --- wait for the backend to answer ------------------------------------------
 printf "==> waiting for the backend"
 ready=0
