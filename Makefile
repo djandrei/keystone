@@ -19,6 +19,12 @@ lint:
 migrate:   ; $(COMPOSE) run --rm backend alembic upgrade head
 seed:      ; $(COMPOSE) run --rm backend python -m keystone_api.cli seed
 bootstrap: ; $(COMPOSE) run --rm backend python -m keystone_api.cli bootstrap
-e2e:       ; $(COMPOSE) run --rm e2e npx playwright test
+
+# Playwright against the already-up stack (nginx on :8080). Bring it up first:
+#   make up   (in another terminal)   then   make e2e
+PW_IMAGE = mcr.microsoft.com/playwright:v1.62.1-noble
+e2e:
+	docker run --rm --network host -v "$(CURDIR)/frontend":/work -w /work \
+	  -u "$$(id -u):$$(id -g)" -e HOME=/work $(PW_IMAGE) npx playwright test
 
 smoke:     ; ./infra/smoke.sh

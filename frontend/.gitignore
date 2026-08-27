@@ -1,0 +1,9 @@
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/.playwright/
+
+# tooling caches created when HOME points at the project (containerized runs)
+/.npm/
+/.cache/
