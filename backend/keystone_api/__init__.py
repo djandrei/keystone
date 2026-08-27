@@ -14,6 +14,7 @@ from .settings_api import settings_bp
 from .binaries_api import binaries_bp
 from .analyses_api import analyses_bp
 from .context import register_db
+from .ws import register_ws
 
 __all__ = ["create_app", "Settings", "get_settings"]
 
@@ -36,5 +37,6 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(settings_bp)
     app.register_blueprint(binaries_bp)
     app.register_blueprint(analyses_bp)
+    register_ws(app)
 
     return app
