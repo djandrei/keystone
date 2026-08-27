@@ -1,4 +1,5 @@
 """keystone_engine.signatures — DSPy signatures + classifiers."""
+from .reachability import assess_reachability, make_reachability_agent
 from .triage import make_triage_agent, triage_findings
 from .platform import (
     classify_platform,
@@ -14,4 +15,6 @@ __all__ = [
     "make_platform_classifier",
     "make_triage_agent",
     "triage_findings",
+    "make_reachability_agent",
+    "assess_reachability",
 ]
