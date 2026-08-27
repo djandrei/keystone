@@ -7,3 +7,6 @@
 # tooling caches created when HOME points at the project (containerized runs)
 /.npm/
 /.cache/
+
+# TS build info
+*.tsbuildinfo
