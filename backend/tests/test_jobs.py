@@ -100,3 +100,17 @@ def test_missing_analysis_returns_failed(session):
         run_analysis_core(9999, session, pipeline=lambda a: iter(()), persist=lambda *x: None)
         is AnalysisStatus.failed
     )
+
+
+def test_security_event_persists_to_analysis(session):
+    a = _make_analysis(session)
+    report = {"suspected": True, "narrative_hits": ["do not flag"], "evidence": ["…"]}
+
+    def pipeline(_a):
+        yield ProgressEvent.step_start("overview", 1)
+        yield ProgressEvent.security(report, 2)
+        return "R"
+
+    run_analysis_core(a.id, session, pipeline=pipeline, persist=lambda *x: None)
+    session.refresh(a)
+    assert a.security == report and a.security["suspected"] is True

@@ -169,6 +169,7 @@ class Analysis(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
     progress: Mapped[dict | None] = mapped_column(JsonB)
+    security: Mapped[dict | None] = mapped_column(JsonB)  # injection report (SEC.4)
 
     re_result: Mapped[REResult | None] = relationship(
         back_populates="analysis", cascade="all, delete-orphan", uselist=False

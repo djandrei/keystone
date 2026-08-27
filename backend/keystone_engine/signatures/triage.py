@@ -63,9 +63,8 @@ def triage_findings(
     for i, f in enumerate(findings):
         if budget is not None and i >= budget:
             break
-        pred = agent(
-            finding_message=f.semgrep_message or "", code=code_lookup(f), rule=f.rule or ""
-        )
+        safe_code = fence_untrusted(sanitize_decompiled(code_lookup(f))[0])
+        pred = agent(finding_message=f.semgrep_message or "", code=safe_code, rule=f.rule or "")
         cwe = getattr(pred, "cwe_id", None) or None
         results.append(
             f.model_copy(

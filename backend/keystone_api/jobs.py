@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from keystone_engine.events import ProgressEvent
+from keystone_engine.events import EventType, ProgressEvent
 
 from .models import Analysis, AnalysisStatus
 
@@ -64,6 +64,8 @@ def run_analysis_core(
                 result = stop.value
                 break
             events.append(event.model_dump())
+            if event.type is EventType.security:
+                analysis.security = event.data  # surface the injection signal
             # a fresh list each time so the JSON column sees a real change
             # (mutating one list in place shares the reference and is missed)
             analysis.progress = {"events": list(events)}

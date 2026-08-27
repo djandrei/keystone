@@ -57,3 +57,18 @@ describe("StepsPanel / ReportView / StatusPill", () => {
     expect(screen.getByText("succeeded")).toBeInTheDocument();
   });
 });
+
+describe("SecurityBanner", () => {
+  it("warns when injection is suspected and stays hidden otherwise", async () => {
+    const { SecurityBanner } = await import("./SecurityBanner");
+    const { container, rerender } = render(<SecurityBanner security={{ suspected: false }} />);
+    expect(container).toBeEmptyDOMElement();
+    rerender(
+      <SecurityBanner
+        security={{ suspected: true, narrative_hits: ["do not flag"], evidence: ["PRIOR-ANALYST NOTE…"] }}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/possible prompt injection/i);
+    expect(screen.getByText(/PRIOR-ANALYST NOTE/)).toBeInTheDocument();
+  });
+});

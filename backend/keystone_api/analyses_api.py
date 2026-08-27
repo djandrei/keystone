@@ -92,6 +92,7 @@ def _public(a: Analysis, *, with_result: bool = False, usernames: dict | None = 
         "finished_at": a.finished_at.isoformat() if a.finished_at else None,
         "error": a.error,
         "progress": a.progress,
+        "security": a.security,
     }
     if with_result and a.re_result is not None:
         r = a.re_result

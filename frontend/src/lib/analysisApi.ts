@@ -45,6 +45,7 @@ export interface AnalysisRow {
   finished_at: string | null;
   error: string | null;
   progress: ProgressSnapshot | null;
+  security?: InjectionReport | null;
   re_result?: REResultView;
 }
 
@@ -68,6 +69,13 @@ export interface AnalysisPage {
   total: number;
   limit: number;
   offset: number;
+}
+
+export interface InjectionReport {
+  suspected: boolean;
+  instruction_hits?: string[];
+  narrative_hits?: string[];
+  evidence?: string[];
 }
 
 export interface StreamEvent {

@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill } from "@/components/analysis/StatusPill";
+import { ShieldAlert } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const STATUSES: (AnalysisStatus | "all")[] = ["all", "queued", "running", "succeeded", "failed", "canceled"];
@@ -87,7 +88,12 @@ export function DashboardPage() {
                 <TD className="uppercase text-fg-muted">{a.mode}</TD>
                 <TD className="text-fg-muted">{a.created_by_username ?? "—"}</TD>
                 <TD>
-                  <StatusPill status={a.status} />
+                  <span className="flex items-center gap-1.5">
+                    <StatusPill status={a.status} />
+                    {a.security?.suspected && (
+                      <ShieldAlert className="h-4 w-4 text-critical" aria-label="injection flagged" />
+                    )}
+                  </span>
                 </TD>
                 <TD className="text-fg-muted">{a.created_at?.slice(0, 16).replace("T", " ")}</TD>
                 <TD>

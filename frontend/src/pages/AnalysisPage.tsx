@@ -11,6 +11,7 @@ import { ReportView } from "@/components/analysis/ReportView";
 import { RulePicker } from "@/components/analysis/RulePicker";
 import { FindingsView } from "@/components/analysis/FindingsView";
 import { ExportBar } from "@/components/analysis/ExportBar";
+import { SecurityBanner } from "@/components/analysis/SecurityBanner";
 
 const ACTIVE = new Set(["queued", "running"]);
 
@@ -77,6 +78,8 @@ export function AnalysisPage() {
           )}
         </div>
       </div>
+
+      <SecurityBanner security={analysis.security} />
 
       {needsInput && !rulePicked && (
         <RulePicker
