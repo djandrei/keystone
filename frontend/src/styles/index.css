@@ -1,0 +1,45 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Keystone tokens — dark-first. A light theme would redefine these under a
+   [data-theme="light"] block; the brand ships dark. */
+:root {
+  --bg: #0b1220;
+  --panel: #111b2e;
+  --panel-2: #16233b;
+  --border: #24324d;
+  --stone: #46577a;
+  --stone-light: #6b7ea6;
+  --amber: #f59e0b;
+  --amber-bright: #fbbf24;
+  --text: #e7ecf4;
+  --text-muted: #9baac6;
+  --good: #34d399;
+  --warn: #f59e0b;
+  --critical: #f87171;
+  --info: #60a5fa;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+    text-wrap: balance;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-amber ring-offset-2 ring-offset-bg;
+  }
+}
