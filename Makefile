@@ -20,3 +20,5 @@ migrate:   ; $(COMPOSE) run --rm backend alembic upgrade head
 seed:      ; $(COMPOSE) run --rm backend python -m keystone_api.cli seed
 bootstrap: ; $(COMPOSE) run --rm backend python -m keystone_api.cli bootstrap
 e2e:       ; $(COMPOSE) run --rm e2e npx playwright test
+
+smoke:     ; ./infra/smoke.sh
