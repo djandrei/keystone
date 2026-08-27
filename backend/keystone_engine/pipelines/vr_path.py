@@ -15,6 +15,7 @@ from keystone_engine.events import EventType, ProgressEvent
 from keystone_engine.mcp import GhidraMcpClient
 from keystone_engine.pipelines.re_path import BinaryRef, _Seq
 from keystone_engine.results import Report, VRFinding
+from keystone_engine.security import detect_injection
 from keystone_engine.semgrep import (
     decompile_program_to_dir,
     group_by_rule_class,
@@ -97,6 +98,11 @@ def run(
         chosen = max(groups, key=lambda k: len(groups[k])) if groups else None
     selected = groups.get(chosen, []) if chosen else []
     yield ProgressEvent.step_finish("rule_pick", seq.next(), rule=chosen, selected=len(selected))
+
+    # Screen the selected findings' decompiled code for injection before it reaches
+    # the triage/reachability agents (which sanitize + fence it internally).
+    injection = detect_injection("\n".join(_code_lookup(f) for f in selected))
+    yield ProgressEvent.security(injection.to_dict(), seq.next())
 
     yield ProgressEvent.step_start("triage", seq.next())
     triage_agent = triage_agent or make_triage_agent()

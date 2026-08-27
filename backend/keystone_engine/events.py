@@ -13,6 +13,7 @@ class EventType(str, enum.Enum):
     log = "log"
     tool_call = "tool_call"
     needs_input = "needs_input"  # pipeline pauses for a user decision (e.g. VR rule pick)
+    security = "security"  # an injection/security signal for the analyst
     error = "error"
     done = "done"
 
@@ -37,3 +38,12 @@ class ProgressEvent(BaseModel):
     @classmethod
     def log(cls, message: str, seq: int = 0, step: str | None = None) -> ProgressEvent:
         return cls(type=EventType.log, message=message, seq=seq, step=step)
+
+    @classmethod
+    def security(cls, report: dict, seq: int = 0) -> ProgressEvent:
+        msg = (
+            "possible prompt injection in the analyzed sample"
+            if report.get("suspected")
+            else "no prompt-injection indicators"
+        )
+        return cls(type=EventType.security, step="security", seq=seq, message=msg, data=report)
