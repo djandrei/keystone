@@ -90,12 +90,12 @@ def test_list_and_read_scoped(app, client, session):
     ana_tok = _tok(client, "ana", "pw123456")
     bob_tok = _tok(client, "bob", "pw123456")
     # ana sees it; bob (other team) doesn't
-    assert len(client.get("/analyses", headers=_h(ana_tok)).get_json()) == 1
-    assert client.get("/analyses", headers=_h(bob_tok)).get_json() == []
+    assert client.get("/analyses", headers=_h(ana_tok)).get_json()["total"] == 1
+    assert client.get("/analyses", headers=_h(bob_tok)).get_json()["items"] == []
     assert client.get(f"/analyses/{a.id}", headers=_h(bob_tok)).status_code == 403
     # filter by status
-    assert len(client.get("/analyses?status=queued", headers=_h(ana_tok)).get_json()) == 1
-    assert client.get("/analyses?status=succeeded", headers=_h(ana_tok)).get_json() == []
+    assert client.get("/analyses?status=queued", headers=_h(ana_tok)).get_json()["total"] == 1
+    assert client.get("/analyses?status=succeeded", headers=_h(ana_tok)).get_json()["items"] == []
 
 
 def test_report_endpoint(app, client, session):

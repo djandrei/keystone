@@ -23,11 +23,14 @@ it("lists recent analyses in the history table", async () => {
   server.use(
     refreshHandler(ADMIN),
     http.get("/api/analyses", () =>
-      HttpResponse.json([
-        { id: 42, team_id: 1, binary_id: 1, mode: "re", status: "succeeded", model: "m",
-          params: null, created_by: 1, created_at: "2026-08-27T10:00:00", started_at: null,
-          finished_at: null, error: null, progress: null },
-      ]),
+      HttpResponse.json({
+        items: [
+          { id: 42, team_id: 1, binary_id: 1, mode: "re", status: "succeeded", model: "m",
+            params: null, created_by: 1, created_at: "2026-08-27T10:00:00", started_at: null,
+            finished_at: null, error: null, progress: null },
+        ],
+        total: 1, limit: 50, offset: 0,
+      }),
     ),
   );
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

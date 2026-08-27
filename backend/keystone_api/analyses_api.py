@@ -134,12 +134,22 @@ def start_analysis(binary_id: int):  # type: ignore[no-untyped-def]
     return jsonify(_public(analysis)), 201
 
 
+_SORT_COLUMNS = {"created_at": Analysis.created_at, "id": Analysis.id, "status": Analysis.status}
+
+
 @analyses_bp.get("/analyses")
 @require_auth
 def list_analyses():  # type: ignore[no-untyped-def]
+    from datetime import datetime
+
     db = get_db()
-    q = scope_to_teams(db.query(Analysis), Analysis, g.principal).order_by(Analysis.id.desc())
-    for field, col in (("binary_id", Analysis.binary_id), ("team_id", Analysis.team_id)):
+    q = scope_to_teams(db.query(Analysis), Analysis, g.principal)
+
+    for field, col in (
+        ("binary_id", Analysis.binary_id),
+        ("team_id", Analysis.team_id),
+        ("created_by", Analysis.created_by),
+    ):
         val = request.args.get(field, type=int)
         if val is not None:
             q = q.filter(col == val)
@@ -153,7 +163,28 @@ def list_analyses():  # type: ignore[no-untyped-def]
             q = q.filter(Analysis.status == AnalysisStatus(status))
         except ValueError:
             return jsonify(error="invalid_status"), 400
-    return jsonify([_public(a) for a in q.all()])
+    for field, op in (("date_from", ">="), ("date_to", "<=")):
+        raw = request.args.get(field)
+        if raw:
+            try:
+                dt = datetime.fromisoformat(raw)
+            except ValueError:
+                return jsonify(error=f"invalid_{field}"), 400
+            q = q.filter(Analysis.created_at >= dt if op == ">=" else Analysis.created_at <= dt)
+    if (term := request.args.get("q")):
+        q = q.join(Binary, Analysis.binary_id == Binary.id).filter(Binary.filename.ilike(f"%{term}%"))
+
+    total = q.count()
+
+    sort = request.args.get("sort", "id")
+    col = _SORT_COLUMNS.get(sort, Analysis.id)
+    q = q.order_by(col.asc() if request.args.get("order") == "asc" else col.desc())
+
+    limit = min(request.args.get("limit", default=50, type=int), 200)
+    offset = max(request.args.get("offset", default=0, type=int), 0)
+    items = q.limit(limit).offset(offset).all()
+
+    return jsonify(items=[_public(a) for a in items], total=total, limit=limit, offset=offset)
 
 
 @analyses_bp.get("/analyses/<int:analysis_id>")

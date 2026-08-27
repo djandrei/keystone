@@ -19,7 +19,7 @@ afterEach(() => {
   localStorage.clear();
 });
 afterAll(() => server.close());
-beforeEach(() => server.use(http.get("/api/analyses", () => HttpResponse.json([]))));
+beforeEach(() => server.use(http.get("/api/analyses", () => HttpResponse.json({ items: [], total: 0, limit: 50, offset: 0 }))));
 
 function renderApp(initial = "/") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

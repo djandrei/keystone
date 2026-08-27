@@ -62,6 +62,13 @@ export interface VRFindingRow {
   confidence: string | null;
 }
 
+export interface AnalysisPage {
+  items: AnalysisRow[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface StreamEvent {
   type: string;
   seq?: number;
@@ -85,7 +92,9 @@ export const analysesApi = {
   start: (binaryId: number, mode: AnalysisMode = "re", params?: Record<string, unknown>) =>
     api.post<AnalysisRow>(`/binaries/${binaryId}/analyses`, { mode, params }).then((r) => r.data),
   list: (filters?: Record<string, string | number>) =>
-    api.get<AnalysisRow[]>("/analyses", { params: filters }).then((r) => r.data),
+    api.get<AnalysisPage>("/analyses", { params: filters }).then((r) => r.data.items),
+  listPage: (filters?: Record<string, string | number>) =>
+    api.get<AnalysisPage>("/analyses", { params: filters }).then((r) => r.data),
   get: (id: number) => api.get<AnalysisRow>(`/analyses/${id}`).then((r) => r.data),
   report: (id: number) => api.get<string>(`/analyses/${id}/report`, { responseType: "text" }).then((r) => r.data),
   cancel: (id: number) => api.post(`/analyses/${id}/cancel`).then((r) => r.data),
