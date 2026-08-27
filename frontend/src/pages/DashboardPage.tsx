@@ -1,20 +1,33 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrentUser } from "@/auth/AuthContext";
 import { useTeam } from "@/team/TeamContext";
-import { analysesApi } from "@/lib/analysisApi";
+import { analysesApi, type AnalysisStatus } from "@/lib/analysisApi";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill } from "@/components/analysis/StatusPill";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const STATUSES: (AnalysisStatus | "all")[] = ["all", "queued", "running", "succeeded", "failed", "canceled"];
 
 export function DashboardPage() {
   const user = useCurrentUser();
   const { activeTeamId, teams } = useTeam();
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState<AnalysisStatus | "all">("all");
+
   const { data: analyses, isLoading } = useQuery({
-    queryKey: ["analyses", activeTeamId],
-    queryFn: () => analysesApi.list(activeTeamId ? { team_id: activeTeamId } : undefined),
+    queryKey: ["analyses", activeTeamId, q, status],
+    queryFn: () =>
+      analysesApi.list({
+        ...(activeTeamId ? { team_id: activeTeamId } : {}),
+        ...(q ? { q } : {}),
+        ...(status !== "all" ? { status } : {}),
+      }),
   });
   const activeTeam = teams.find((t) => t.id === activeTeamId);
 
@@ -28,6 +41,29 @@ export function DashboardPage() {
         <Button asChild>
           <Link to="/binaries">Upload &amp; analyze</Link>
         </Button>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-48">
+          <Input
+            aria-label="Search analyses"
+            placeholder="Search by binary filename…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <Select value={status} onValueChange={(v) => setStatus(v as AnalysisStatus | "all")}>
+          <SelectTrigger aria-label="Status filter" className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {isLoading ? (
