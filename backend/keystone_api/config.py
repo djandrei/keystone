@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     # --- ghidra-headless-mcp (M2) ---
     mcp_endpoint: str = "http://ghidra-mcp:1341"
 
+    # --- engine ---
+    # Fake engine: run a deterministic canned pipeline (no Ghidra/LLM) — used by
+    # the M2 e2e so the full async path is provable without external services.
+    engine_fake: bool = False
+
     # --- LLM (endpoint + default model live in system_settings; key is a secret) ---
     llm_api_key: str = ""
 

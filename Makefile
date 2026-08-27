@@ -1,6 +1,7 @@
 COMPOSE = docker compose -f infra/docker-compose.yml
+COMPOSE_E2E = $(COMPOSE) -f infra/docker-compose.e2e.yml
 
-.PHONY: up down logs ps build test test-be test-fe lint migrate seed bootstrap e2e
+.PHONY: up down logs ps build test test-be test-fe lint migrate seed bootstrap e2e engine-fake
 
 up:        ; $(COMPOSE) up --build
 down:      ; $(COMPOSE) down
@@ -19,6 +20,9 @@ lint:
 migrate:   ; $(COMPOSE) run --rm backend alembic upgrade head
 seed:      ; $(COMPOSE) run --rm backend python -m keystone_api.cli seed
 bootstrap: ; $(COMPOSE) run --rm backend python -m keystone_api.cli bootstrap
+
+# Start the worker with the deterministic fake engine (needed for the M2 e2e).
+engine-fake: ; $(COMPOSE_E2E) --profile engine up -d worker
 
 # Playwright against the already-up stack (nginx on :8080). Bring it up first:
 #   make up   (in another terminal)   then   make e2e

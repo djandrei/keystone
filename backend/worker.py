@@ -17,7 +17,9 @@ from keystone_api.services import get_or_create_settings
 from keystone_api.storage import get_object_store
 from keystone_engine.llm import configure_lm, make_lm
 from keystone_engine.mcp import GhidraMcpClient
+from keystone_engine.events import EventType, ProgressEvent
 from keystone_engine.pipelines import BinaryRef, re_path
+from keystone_engine.results import Report, REResult
 
 settings = get_settings()
 app = Celery("keystone", broker=settings.redis_url, backend=settings.redis_url)
@@ -35,6 +37,24 @@ def _publish(analysis_id: int, event: dict) -> None:
 
 def _is_canceled(analysis_id: int) -> bool:
     return bool(_redis().get(f"analysis:{analysis_id}:cancel"))
+
+
+def _fake_pipeline(_a):
+    """Deterministic canned RE run — no Ghidra, no LLM (engine_fake mode)."""
+    yield ProgressEvent.step_start("overview", 1)
+    yield ProgressEvent.step_finish("overview", 2, imports=3)
+    yield ProgressEvent.step_start("decompile", 3)
+    yield ProgressEvent.step_finish("decompile", 4, count=2)
+    yield ProgressEvent.step_start("analyze", 5)
+    result = REResult(
+        binary_type="cli_tool", purpose="Deterministic fake analysis for the M2 e2e.",
+        key_functions="main", attack_surface="argv parsing", language_runtime="C",
+        tool_calls=2, raw={"fake": True},
+    )
+    report = Report(format="md", content="# RE Analysis\n\n**Language / runtime:** C\n")
+    yield ProgressEvent.step_finish("analyze", 6, language_runtime="C")
+    yield ProgressEvent(type=EventType.done, seq=7, step="done", data={"language_runtime": "C"})
+    return (result, report)
 
 
 @app.task(name="run_analysis")
@@ -55,6 +75,14 @@ def run_analysis(analysis_id: int) -> str:
 
         sample_path = f"{settings.sample_dir}/{binary.sha256}_{binary.ghidra_program_name}"
         ref = BinaryRef(program=binary.ghidra_program_name, sha256=binary.sha256, filename=binary.filename)
+
+        if settings.engine_fake:
+            status = run_analysis_core(
+                analysis_id, session, pipeline=_fake_pipeline,
+                persist=lambda s, a, r: persist_re_result(s, a, r, store=store),
+                publish=_publish, is_canceled=_is_canceled,
+            )
+            return status.value
 
         def pipeline(_a):  # type: ignore[no-untyped-def]
             client.analyze_binary(sample_path)  # idempotent import into Ghidra
