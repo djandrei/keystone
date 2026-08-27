@@ -8,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StepsPanel } from "@/components/analysis/StepsPanel";
 import { StatusPill } from "@/components/analysis/StatusPill";
 import { ReportView } from "@/components/analysis/ReportView";
+import { RulePicker } from "@/components/analysis/RulePicker";
+import { FindingsView } from "@/components/analysis/FindingsView";
 
 const ACTIVE = new Set(["queued", "running"]);
 
@@ -23,6 +25,7 @@ export function AnalysisPage() {
   });
 
   const active = analysis ? ACTIVE.has(analysis.status) : false;
+  const isVr = analysis?.mode === "vr";
   const { events } = useAnalysisStream(analysisId, active, analysis?.progress?.events ?? []);
 
   const { data: report } = useQuery({
@@ -31,15 +34,30 @@ export function AnalysisPage() {
     enabled: analysis?.status === "succeeded",
   });
 
+  const { data: findings } = useQuery({
+    queryKey: ["findings", analysisId],
+    queryFn: () => analysesApi.findings(analysisId),
+    enabled: isVr && analysis?.status === "succeeded",
+  });
+
   const cancel = useMutation({
     mutationFn: () => analysesApi.cancel(analysisId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["analysis", analysisId] }),
   });
 
+  const selectRule = useMutation({
+    mutationFn: (rule: string) => analysesApi.selectRule(analysisId, rule),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["analysis", analysisId] }),
+  });
+
   if (isLoading || !analysis) return <Skeleton className="h-64 w-full" />;
 
-  // stream events while active, otherwise the persisted snapshot
   const shownEvents = active && events.length ? events : analysis.progress?.events ?? [];
+  // a pending rule pick: a needs_input event whose choice hasn't been made yet
+  const needsInput = active
+    ? [...shownEvents].reverse().find((e) => e.type === "needs_input")
+    : undefined;
+  const rulePicked = Boolean(analysis.params?.rule);
 
   return (
     <div className="flex flex-col gap-6">
@@ -55,6 +73,14 @@ export function AnalysisPage() {
           </Button>
         )}
       </div>
+
+      {needsInput && !rulePicked && (
+        <RulePicker
+          classes={(needsInput.data?.classes as Record<string, number>) ?? {}}
+          pending={selectRule.isPending}
+          onPick={(rule) => selectRule.mutate(rule)}
+        />
+      )}
 
       <Card>
         <CardHeader>
@@ -76,7 +102,18 @@ export function AnalysisPage() {
         </Card>
       )}
 
-      {analysis.status === "succeeded" && <ReportView result={analysis.re_result} markdown={report} />}
+      {analysis.status === "succeeded" && isVr && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Vulnerability findings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FindingsView findings={findings ?? []} />
+          </CardContent>
+        </Card>
+      )}
+
+      {analysis.status === "succeeded" && !isVr && <ReportView result={analysis.re_result} markdown={report} />}
     </div>
   );
 }

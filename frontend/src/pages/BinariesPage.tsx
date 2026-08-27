@@ -32,8 +32,9 @@ export function BinariesPage() {
     onError: () => toast({ title: "Upload failed", variant: "error" }),
   });
 
-  const runRe = useMutation({
-    mutationFn: (binaryId: number) => analysesApi.start(binaryId, "re"),
+  const start = useMutation({
+    mutationFn: ({ binaryId, mode }: { binaryId: number; mode: "re" | "vr" }) =>
+      analysesApi.start(binaryId, mode, mode === "vr" ? { interactive: true } : undefined),
     onSuccess: (a) => {
       qc.invalidateQueries({ queryKey: ["analyses"] });
       navigate(`/analyses/${a.id}`);
@@ -93,9 +94,12 @@ export function BinariesPage() {
                 <TD className="text-fg-muted">{b.arch ?? "—"}</TD>
                 <TD className="text-fg-muted">{b.platform ?? "—"}</TD>
                 <TD>
-                  <div className="flex justify-end">
-                    <Button size="sm" disabled={runRe.isPending} onClick={() => runRe.mutate(b.id)}>
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" disabled={start.isPending} onClick={() => start.mutate({ binaryId: b.id, mode: "re" })}>
                       Run RE
+                    </Button>
+                    <Button size="sm" variant="secondary" disabled={start.isPending} onClick={() => start.mutate({ binaryId: b.id, mode: "vr" })}>
+                      Run VR
                     </Button>
                   </div>
                 </TD>

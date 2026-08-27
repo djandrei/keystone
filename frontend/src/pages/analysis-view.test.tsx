@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -76,4 +77,48 @@ it("renders the RE report when succeeded", async () => {
   expect(screen.getAllByText("Go").length).toBeGreaterThan(0);
   // no WS connection when not active
   expect(MockWebSocket.instances.length).toBe(0);
+});
+
+it("renders VR findings when a VR analysis succeeds", async () => {
+  server.use(
+    http.get("/api/analyses/11", () =>
+      HttpResponse.json({
+        id: 11, team_id: 1, binary_id: 1, mode: "vr", status: "succeeded", model: "m",
+        params: { rule: "integer-overflow" }, created_by: 1, created_at: null, started_at: null,
+        finished_at: null, error: null,
+        progress: { events: [{ type: "step_finish", step: "reachability", seq: 1 }] },
+      }),
+    ),
+    http.get("/api/analyses/11/report", () => HttpResponse.text("# VR Analysis")),
+    http.get("/api/analyses/11/findings", () =>
+      HttpResponse.json([
+        { id: 1, rule: "integer-overflow", file: "parse.c", line: 3, semgrep_message: "overflow",
+          classification: "true_positive", risk_level: "high", cwe_id: "CWE-190",
+          reasoning: "unchecked", reachable: "yes", entry_path: "ioctl", confidence: "high" },
+      ]),
+    ),
+  );
+  renderAt(11);
+  expect(await screen.findByText("CWE-190")).toBeInTheDocument();
+  expect(screen.getByText(/vulnerability findings/i)).toBeInTheDocument();
+});
+
+it("shows the rule picker on needs_input and selects a rule", async () => {
+  let picked: string | null = null;
+  server.use(
+    http.get("/api/analyses/12", () =>
+      HttpResponse.json({
+        id: 12, team_id: 1, binary_id: 1, mode: "vr", status: "running", model: "m",
+        params: null, created_by: 1, created_at: null, started_at: null, finished_at: null, error: null,
+        progress: { events: [{ type: "needs_input", step: "rule_pick", data: { classes: { "integer-overflow": 2, "format-string": 1 } } }] },
+      }),
+    ),
+    http.post("/api/analyses/12/select-rule", async ({ request }) => {
+      picked = ((await request.json()) as { rule: string }).rule;
+      return HttpResponse.json({ status: "ok", rule: picked });
+    }),
+  );
+  renderAt(12);
+  await userEvent.click(await screen.findByRole("button", { name: /integer-overflow/ }));
+  await waitFor(() => expect(picked).toBe("integer-overflow"));
 });

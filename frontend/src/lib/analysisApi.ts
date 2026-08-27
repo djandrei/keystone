@@ -47,6 +47,21 @@ export interface AnalysisRow {
   re_result?: REResultView;
 }
 
+export interface VRFindingRow {
+  id: number;
+  rule: string | null;
+  file: string | null;
+  line: number | null;
+  semgrep_message: string | null;
+  classification: "true_positive" | "false_positive" | "needs_review" | null;
+  risk_level: "critical" | "high" | "medium" | "low" | "informational" | null;
+  cwe_id: string | null;
+  reasoning: string | null;
+  reachable: string | null;
+  entry_path: string | null;
+  confidence: string | null;
+}
+
 export interface StreamEvent {
   type: string;
   seq?: number;
@@ -74,4 +89,7 @@ export const analysesApi = {
   get: (id: number) => api.get<AnalysisRow>(`/analyses/${id}`).then((r) => r.data),
   report: (id: number) => api.get<string>(`/analyses/${id}/report`, { responseType: "text" }).then((r) => r.data),
   cancel: (id: number) => api.post(`/analyses/${id}/cancel`).then((r) => r.data),
+  findings: (id: number) => api.get<VRFindingRow[]>(`/analyses/${id}/findings`).then((r) => r.data),
+  selectRule: (id: number, rule: string) =>
+    api.post(`/analyses/${id}/select-rule`, { rule }).then((r) => r.data),
 };
