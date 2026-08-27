@@ -16,6 +16,7 @@ from .analyses_api import analyses_bp
 from .audit_api import audit_bp
 from .context import register_db
 from .ws import register_ws
+from .observability import register_observability
 
 __all__ = ["create_app", "Settings", "get_settings"]
 
@@ -39,6 +40,7 @@ def create_app(settings: Settings | None = None) -> Flask:
         return resp
 
     register_db(app)
+    register_observability(app)
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(tokens_bp)

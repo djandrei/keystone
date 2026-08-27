@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # --- ghidra-headless-mcp (M2) ---
     mcp_endpoint: str = "http://ghidra-mcp:1341"
 
+    # --- observability (M5.1) ---
+    sentry_dsn: str = ""
+
     # --- engine ---
     # Fake engine: run a deterministic canned pipeline (no Ghidra/LLM) — used by
     # the M2 e2e so the full async path is provable without external services.
