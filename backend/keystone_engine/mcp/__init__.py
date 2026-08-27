@@ -1,1 +1,4 @@
-"""keystone_engine.mcp — populated in later M2/M3 stages."""
+"""keystone_engine.mcp — typed client for ghidra-headless-mcp."""
+from .client import GhidraMcpClient, HttpTransport, McpError, Transport
+
+__all__ = ["GhidraMcpClient", "HttpTransport", "McpError", "Transport"]
