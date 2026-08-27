@@ -39,6 +39,7 @@ export interface AnalysisRow {
   model: string | null;
   params: Record<string, unknown> | null;
   created_by: number;
+  created_by_username?: string | null;
   created_at: string | null;
   started_at: string | null;
   finished_at: string | null;

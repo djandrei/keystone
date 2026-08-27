@@ -70,3 +70,11 @@ def test_sort_order(app, client, session):
     desc = client.get("/analyses?sort=id&order=desc", headers=_h(tok)).get_json()["items"]
     assert [a["id"] for a in asc] == sorted(a["id"] for a in asc)
     assert desc[0]["id"] > desc[-1]["id"]
+
+
+def test_items_carry_creator_username(app, client, session):
+    _seed(session)
+    tok = _tok(client, "ana", "pw123456")
+    items = client.get("/analyses", headers=_h(tok)).get_json()["items"]
+    names = {a["created_by_username"] for a in items}
+    assert names == {"ana", "bob"}  # who ran what is visible to teammates

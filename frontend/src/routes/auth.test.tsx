@@ -19,7 +19,10 @@ afterEach(() => {
   localStorage.clear();
 });
 afterAll(() => server.close());
-beforeEach(() => server.use(http.get("/api/analyses", () => HttpResponse.json({ items: [], total: 0, limit: 50, offset: 0 }))));
+beforeEach(() => {
+  server.use(http.get("/api/analyses", () => HttpResponse.json({ items: [], total: 0, limit: 50, offset: 0 })));
+  server.use(http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Default", created_at: null, created_by: 1 }])));
+});
 
 function renderApp(initial = "/") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

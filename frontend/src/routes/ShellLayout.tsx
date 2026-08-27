@@ -1,6 +1,7 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { AppShell } from "@/components/shell/AppShell";
+import { TeamProvider } from "@/team/TeamContext";
 
 export function ShellLayout() {
   const { user, logout } = useAuth();
@@ -13,8 +14,10 @@ export function ShellLayout() {
   }
 
   return (
-    <AppShell user={{ username: user.username, role: user.role }} onLogout={onLogout}>
-      <Outlet />
-    </AppShell>
+    <TeamProvider>
+      <AppShell user={{ username: user.username, role: user.role }} onLogout={onLogout}>
+        <Outlet />
+      </AppShell>
+    </TeamProvider>
   );
 }

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { binariesApi, analysesApi } from "@/lib/analysisApi";
 import { teamsApi } from "@/lib/adminApi";
+import { useTeam } from "@/team/TeamContext";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -18,10 +19,11 @@ export function BinariesPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { data: teams } = useQuery({ queryKey: ["teams"], queryFn: teamsApi.list });
+  const { activeTeamId } = useTeam();
   const [teamId, setTeamId] = useState<string>("");
   const { data: binaries, isLoading } = useQuery({ queryKey: ["binaries"], queryFn: () => binariesApi.list() });
 
-  const effectiveTeam = teamId || (teams && teams[0] ? String(teams[0].id) : "");
+  const effectiveTeam = teamId || (activeTeamId ? String(activeTeamId) : teams && teams[0] ? String(teams[0].id) : "");
 
   const upload = useMutation({
     mutationFn: (file: File) => binariesApi.upload(Number(effectiveTeam), file),

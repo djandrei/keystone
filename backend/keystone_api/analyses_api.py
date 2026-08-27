@@ -71,7 +71,7 @@ def _finding_public(f: VRFinding) -> dict:
     }
 
 
-def _public(a: Analysis, *, with_result: bool = False) -> dict:
+def _public(a: Analysis, *, with_result: bool = False, usernames: dict | None = None) -> dict:
     body = {
         "id": a.id,
         "team_id": a.team_id,
@@ -81,6 +81,7 @@ def _public(a: Analysis, *, with_result: bool = False) -> dict:
         "model": a.model,
         "params": a.params,
         "created_by": a.created_by,
+        "created_by_username": (usernames or {}).get(a.created_by),
         "created_at": a.created_at.isoformat() if a.created_at else None,
         "started_at": a.started_at.isoformat() if a.started_at else None,
         "finished_at": a.finished_at.isoformat() if a.finished_at else None,
@@ -185,7 +186,13 @@ def list_analyses():  # type: ignore[no-untyped-def]
     offset = max(request.args.get("offset", default=0, type=int), 0)
     items = q.limit(limit).offset(offset).all()
 
-    return jsonify(items=[_public(a) for a in items], total=total, limit=limit, offset=offset)
+    from .models import User
+    ids = {a.created_by for a in items}
+    usernames = {u.id: u.username for u in db.query(User).filter(User.id.in_(ids)).all()} if ids else {}
+
+    return jsonify(
+        items=[_public(a, usernames=usernames) for a in items], total=total, limit=limit, offset=offset
+    )
 
 
 @analyses_bp.get("/analyses/<int:analysis_id>")
@@ -197,7 +204,9 @@ def get_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
         return jsonify(error="not_found"), 404
     if not can_access_team(g.principal, a.team_id):
         return jsonify(error="forbidden"), 403
-    return jsonify(_public(a, with_result=True))
+    from .models import User
+    creator = db.get(User, a.created_by)
+    return jsonify(_public(a, with_result=True, usernames={a.created_by: creator.username} if creator else None))
 
 
 @analyses_bp.get("/analyses/<int:analysis_id>/report")

@@ -4,6 +4,7 @@ import * as Avatar from "@radix-ui/react-avatar";
 import { LogOut, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Wordmark } from "@/components/brand/Wordmark";
+import { TeamSwitcher } from "./TeamSwitcher";
 import { Badge } from "@/components/ui/badge";
 import { visibleNav, type Role } from "./nav";
 
@@ -42,7 +43,8 @@ export function TopBar({ user, onLogout }: { user: TopBarUser; onLogout: () => v
           ))}
         </nav>
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          <TeamSwitcher />
           <DropdownMenu.Root>
             <DropdownMenu.Trigger
               className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-panel-2 focus-visible:ring-2 focus-visible:ring-amber"
