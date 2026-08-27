@@ -61,7 +61,7 @@ test("M1 end-to-end: admin provisions an analyst who then logs in", async ({ pag
   await page.getByLabel(/llm endpoint url/i).fill("https://llm.example.com/api");
   await page.getByLabel(/default model/i).fill("qwen/qwen3-8b");
   await page.getByRole("button", { name: /save settings/i }).click();
-  await expect(page.getByText(/settings saved/i)).toBeVisible();
+  await expect(page.getByText(/settings saved/i).first()).toBeVisible();
 
   // 6. admin logs out; analyst logs in with the temp password -> empty dashboard
   await logout(page);

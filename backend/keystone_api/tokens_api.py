@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ValidationError
 from .auth.apitokens import create_api_token, list_api_tokens, revoke_api_token
 from .auth.deps import require_auth
 from .context import get_db
+from .ratelimit import rate_limit
 
 tokens_bp = Blueprint("tokens", __name__, url_prefix="/tokens")
 
@@ -37,6 +38,7 @@ def list_tokens():  # type: ignore[no-untyped-def]
 
 @tokens_bp.post("")
 @require_auth
+@rate_limit("token", 20, 60)
 def create_token():  # type: ignore[no-untyped-def]
     try:
         body = CreateTokenRequest.model_validate(request.get_json(silent=True) or {})

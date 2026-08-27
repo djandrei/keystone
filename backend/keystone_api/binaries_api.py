@@ -18,6 +18,7 @@ from .context import get_db
 from .models import Binary, Role
 from .auth.deps import require_auth
 from .rbac import can_access_team, require_role, scope_to_teams
+from .ratelimit import rate_limit
 from .sniff import sniff
 from .storage import ObjectStore, get_object_store
 
@@ -51,6 +52,7 @@ def _public(b: Binary) -> dict:
 
 @binaries_bp.post("")
 @require_role(Role.admin, Role.analyst)
+@rate_limit("upload", 30, 60)
 def upload_binary():  # type: ignore[no-untyped-def]
     settings = current_app.config.get("KEYSTONE") or get_settings()
     file = request.files.get("file")

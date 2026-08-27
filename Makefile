@@ -1,7 +1,7 @@
 COMPOSE = docker compose -f infra/docker-compose.yml
 COMPOSE_E2E = $(COMPOSE) -f infra/docker-compose.e2e.yml
 
-.PHONY: up down logs ps build test test-be test-fe lint migrate seed bootstrap e2e engine-fake
+.PHONY: up down logs ps build test test-be test-fe lint migrate seed bootstrap e2e engine-fake audit
 
 up:        ; $(COMPOSE) up --build
 down:      ; $(COMPOSE) down
@@ -30,5 +30,10 @@ PW_IMAGE = mcr.microsoft.com/playwright:v1.62.1-noble
 e2e:
 	docker run --rm --network host -v "$(CURDIR)/frontend":/work -w /work \
 	  -u "$$(id -u):$$(id -g)" -e HOME=/work $(PW_IMAGE) npx playwright test
+
+# Dependency vulnerability audit (best-effort; non-gating).
+audit:
+	-$(COMPOSE) run --rm backend sh -c "pip install -q pip-audit && pip-audit"
+	-$(COMPOSE) run --rm frontend npm audit --omit=dev
 
 smoke:     ; ./infra/smoke.sh

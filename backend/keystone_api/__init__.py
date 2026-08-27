@@ -28,6 +28,15 @@ def create_app(settings: Settings | None = None) -> Flask:
     app = Flask(__name__)
     app.config["KEYSTONE"] = settings
     app.config["TESTING"] = settings.env == "test"
+    app.config["RATE_LIMIT_DISABLED"] = settings.env == "test"
+
+    @app.after_request
+    def _security_headers(resp):  # type: ignore[no-untyped-def]
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Referrer-Policy", "no-referrer")
+        resp.headers.setdefault("X-XSS-Protection", "0")
+        return resp
 
     register_db(app)
     app.register_blueprint(health_bp)
