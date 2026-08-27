@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Boxes, Users, Shield, Settings } from "lucide-react";
+import { LayoutDashboard, Boxes, Users, Shield, Settings, ScrollText } from "lucide-react";
 
 export type Role = "admin" | "analyst" | "viewer";
 
@@ -17,6 +17,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Users", to: "/admin/users", icon: Users, roles: ["admin"] },
   { label: "Teams", to: "/admin/teams", icon: Shield, roles: ["admin"] },
   { label: "Settings", to: "/admin/settings", icon: Settings, roles: ["admin"] },
+  { label: "Audit", to: "/admin/audit", icon: ScrollText, roles: ["admin"] },
 ];
 
 export function visibleNav(role: Role | undefined): NavItem[] {

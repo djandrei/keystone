@@ -69,3 +69,27 @@ export const settingsApi = {
   testConnection: (llm_endpoint_url?: string) =>
     api.post<TestConnectionResult>("/settings/test-connection", { llm_endpoint_url }).then((r) => r.data),
 };
+
+
+export interface AuditRow {
+  id: number;
+  user_id: number | null;
+  username: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  detail: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
+export interface AuditPage {
+  items: AuditRow[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export const auditApi = {
+  list: (filters?: Record<string, string | number>) =>
+    api.get<AuditPage>("/audit", { params: filters }).then((r) => r.data),
+};

@@ -6,6 +6,7 @@ import { AnalysisPage } from "@/pages/AnalysisPage";
 import { UsersAdminPage } from "@/pages/admin/UsersAdminPage";
 import { TeamsAdminPage } from "@/pages/admin/TeamsAdminPage";
 import { SettingsPage } from "@/pages/admin/SettingsPage";
+import { AuditPage } from "@/pages/admin/AuditPage";
 import { RequireAuth, RequireRole } from "@/routes/guards";
 import { ShellLayout } from "@/routes/ShellLayout";
 
@@ -22,6 +23,7 @@ export function App() {
             <Route path="/admin/users" element={<UsersAdminPage />} />
             <Route path="/admin/teams" element={<TeamsAdminPage />} />
             <Route path="/admin/settings" element={<SettingsPage />} />
+            <Route path="/admin/audit" element={<AuditPage />} />
           </Route>
         </Route>
       </Route>
