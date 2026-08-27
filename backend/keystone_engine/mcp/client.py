@@ -29,21 +29,33 @@ class Transport(Protocol):
 
 class HttpTransport:
     def __init__(
-        self, base_url: str, *, timeout: float = 120.0, retries: int = 2, backoff: float = 0.5
+        self,
+        base_url: str,
+        *,
+        api_key: str | None = None,
+        timeout: float = 120.0,
+        retries: int = 2,
+        backoff: float = 0.5,
     ) -> None:
         self.base_url = base_url.rstrip("/")
+        self.api_key = api_key or None
         self.timeout = timeout
         self.retries = retries
         self.backoff = backoff
+
+    def _headers(self) -> dict:
+        headers = {"Content-Type": "application/json"}
+        # The mcpo (--api-key) and native surfaces both take a bearer token.
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
 
     def call(self, tool: str, args: dict) -> dict:
         url = f"{self.base_url}/{tool}"
         body = json.dumps(args).encode("utf-8")
         last: Exception | None = None
         for attempt in range(self.retries + 1):
-            req = urllib.request.Request(
-                url, data=body, headers={"Content-Type": "application/json"}, method="POST"
-            )
+            req = urllib.request.Request(url, data=body, headers=self._headers(), method="POST")
             try:
                 with urllib.request.urlopen(
                     req, timeout=self.timeout
@@ -68,11 +80,17 @@ class HttpTransport:
 class GhidraMcpClient:
     """Thin, typed wrapper over the tool surface the pipelines need."""
 
-    def __init__(self, base_url: str | None = None, transport: Transport | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str | None = None,
+        transport: Transport | None = None,
+        *,
+        api_key: str | None = None,
+    ) -> None:
         if transport is None:
             if not base_url:
                 raise ValueError("GhidraMcpClient needs a base_url or a transport")
-            transport = HttpTransport(base_url)
+            transport = HttpTransport(base_url, api_key=api_key)
         self._t = transport
 
     # --- import / analyze ---------------------------------------------------

@@ -157,20 +157,9 @@ def run_analysis(analysis_id: int) -> str:
         if analysis is None:
             return "failed"
         binary = session.get(Binary, analysis.binary_id)
-        client = GhidraMcpClient(base_url=settings.mcp_endpoint)
-
-        sysset = get_or_create_settings(session)
-        if sysset.llm_endpoint_url and sysset.default_model:
-            configure_lm(
-                make_lm(sysset.llm_endpoint_url, sysset.default_model, settings.llm_api_key)
-            )
         store = get_object_store()
 
-        sample_path = f"{settings.sample_dir}/{binary.sha256}_{binary.ghidra_program_name}"
-        ref = BinaryRef(
-            program=binary.ghidra_program_name, sha256=binary.sha256, filename=binary.filename
-        )
-
+        # Fake engine (e2e / demo): no Ghidra, no LLM, no MCP key needed.
         if settings.engine_fake:
             if analysis.mode is AnalysisMode.vr:
                 pipeline = _fake_vr_pipeline(analysis_id, analysis.params or {})
@@ -187,6 +176,26 @@ def run_analysis(analysis_id: int) -> str:
                 is_canceled=_is_canceled,
             )
             return status.value
+
+        # Real engine: the authenticated MCP server rejects unauthenticated calls.
+        if not settings.mcp_api_key:
+            raise RuntimeError(
+                "KEYSTONE_MCP_API_KEY is not set — the authenticated ghidra-headless-mcp "
+                "server rejects unauthenticated calls. Set it (matching the server's "
+                "GHMCP_API_KEY) before running real analyses."
+            )
+        client = GhidraMcpClient(base_url=settings.mcp_endpoint, api_key=settings.mcp_api_key)
+
+        sysset = get_or_create_settings(session)
+        if sysset.llm_endpoint_url and sysset.default_model:
+            configure_lm(
+                make_lm(sysset.llm_endpoint_url, sysset.default_model, settings.llm_api_key)
+            )
+
+        sample_path = f"{settings.sample_dir}/{binary.sha256}_{binary.ghidra_program_name}"
+        ref = BinaryRef(
+            program=binary.ghidra_program_name, sha256=binary.sha256, filename=binary.filename
+        )
 
         def pipeline(_a):  # type: ignore[no-untyped-def]
             client.analyze_binary(sample_path)  # idempotent import into Ghidra

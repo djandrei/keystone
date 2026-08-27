@@ -83,6 +83,7 @@ services:
     profiles: ["engine"]
     environment:
       GHIDRA_INSTALL_DIR: /ghidra
+      GHMCP_API_KEY: ${KEYSTONE_MCP_API_KEY:-}
     expose: ["1341"]
     volumes: [ghidra-projects:/projects, "samples:/samples"]
 

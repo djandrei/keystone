@@ -15,11 +15,12 @@ from keystone_engine.mcp import GhidraMcpClient, McpError
 pytestmark = pytest.mark.integration
 
 ENDPOINT = os.environ.get("KEYSTONE_MCP_ENDPOINT", "http://ghidra-mcp:1341")
+API_KEY = os.environ.get("KEYSTONE_MCP_API_KEY") or os.environ.get("GHMCP_API_KEY")
 
 
 @pytest.fixture
 def client():
-    c = GhidraMcpClient(base_url=ENDPOINT)
+    c = GhidraMcpClient(base_url=ENDPOINT, api_key=API_KEY)
     try:
         c.list_programs()  # cheap reachability probe
     except (McpError, OSError) as e:

@@ -90,3 +90,17 @@ def test_llm_key_never_leaks(app, client, session, monkeypatch):
     assert r.status_code == 200
     assert b"SUPER-SECRET-KEY" not in r.data  # never serialized
     assert r.get_json()["llm_key_configured"] is True  # only the boolean is exposed
+
+
+def test_mcp_api_key_never_leaks(app, client, session, monkeypatch):
+    _bootstrap(session)
+    from keystone_api import settings_api
+
+    monkeypatch.setattr(
+        settings_api, "get_settings", lambda: Settings(env="test", mcp_api_key="MCP-SECRET-XYZ")
+    )
+    admin = client.post(
+        "/auth/login", json={"username": "admin", "password": "change-me"}
+    ).get_json()["access_token"]
+    r = client.get("/settings", headers={"Authorization": f"Bearer {admin}"})
+    assert r.status_code == 200 and b"MCP-SECRET-XYZ" not in r.data

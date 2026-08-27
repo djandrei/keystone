@@ -117,3 +117,44 @@ def test_http_transport_gives_up_and_raises():
             HttpTransport("http://x", retries=1, backoff=0.0).call("ping", {})
     finally:
         urllib.request.urlopen = orig  # type: ignore[assignment]
+
+
+def test_http_transport_sends_bearer_when_key_set():
+    import urllib.request
+
+    from keystone_engine.mcp.client import HttpTransport
+
+    captured = {}
+
+    class FakeResp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b"{}"
+
+    def fake_urlopen(req, timeout=None):
+        captured["headers"] = dict(req.header_items())
+        return FakeResp()
+
+    orig = urllib.request.urlopen
+    urllib.request.urlopen = fake_urlopen  # type: ignore[assignment]
+    try:
+        HttpTransport("http://x", api_key="secret-key-value").call("list_programs", {})
+        assert captured["headers"].get("Authorization") == "Bearer secret-key-value"
+        # no key -> no Authorization header
+        captured.clear()
+        HttpTransport("http://x").call("list_programs", {})
+        assert "Authorization" not in captured["headers"]
+    finally:
+        urllib.request.urlopen = orig  # type: ignore[assignment]
+
+
+def test_client_passes_api_key_to_default_transport():
+    from keystone_engine.mcp.client import GhidraMcpClient, HttpTransport
+
+    c = GhidraMcpClient(base_url="http://x", api_key="k")
+    assert isinstance(c._t, HttpTransport) and c._t.api_key == "k"
