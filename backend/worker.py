@@ -5,6 +5,7 @@ publish/cancel) into the framework-free `run_analysis_core`."""
 from __future__ import annotations
 
 import json
+import time
 
 from celery import Celery
 
@@ -37,6 +38,23 @@ def _publish(analysis_id: int, event: dict) -> None:
 
 def _is_canceled(analysis_id: int) -> bool:
     return bool(_redis().get(f"analysis:{analysis_id}:cancel"))
+
+
+def _make_rule_resolver(analysis_id: int, timeout: int = 300, interval: int = 2):
+    """Block until the user POSTs a rule selection (Redis key), else auto-pick."""
+    def resolve(counts: dict) -> str | None:
+        r = _redis()
+        key = f"analysis:{analysis_id}:rule"
+        waited = 0
+        while waited < timeout:
+            val = r.get(key)
+            if val:
+                return val.decode() if isinstance(val, bytes) else val
+            time.sleep(interval)
+            waited += interval
+        return max(counts, key=lambda k: counts[k]) if counts else None
+
+    return resolve
 
 
 def _fake_pipeline(_a):
@@ -87,9 +105,13 @@ def run_analysis(analysis_id: int) -> str:
         def pipeline(_a):  # type: ignore[no-untyped-def]
             client.analyze_binary(sample_path)  # idempotent import into Ghidra
             if _a.mode is AnalysisMode.vr:
-                from keystone_engine.pipelines import vr_path  # available from M3.3
+                from keystone_engine.pipelines import vr_path
 
-                return vr_path.run(ref, client, rule=(_a.params or {}).get("rule"))
+                params = _a.params or {}
+                resolver = None
+                if not params.get("rule") and params.get("interactive"):
+                    resolver = _make_rule_resolver(analysis_id)
+                return vr_path.run(ref, client, rule=params.get("rule"), rule_resolver=resolver)
             return re_path.run(ref, client)
 
         def persist(s, a, result):  # type: ignore[no-untyped-def]

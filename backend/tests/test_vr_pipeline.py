@@ -88,3 +88,24 @@ def test_vr_pipeline_honors_explicit_rule_and_budget(tmp_path):
     )
     _events, (findings, _report) = _drive(gen)
     assert len(findings) == 1 and findings[0].rule.endswith("format-string")
+
+
+def test_vr_pipeline_interactive_rule_resolver(tmp_path):
+    from keystone_engine.events import EventType as ET
+
+    client = GhidraMcpClient(transport=FakeMcp())
+    binary = BinaryRef(program="drv", sha256="h3", filename="d.sys")
+    seen: dict = {}
+
+    def resolver(counts):
+        seen["counts"] = counts
+        return "format-string"  # user picks the smaller class
+
+    gen = vr_path.run(
+        binary, client, base_dir=str(tmp_path), rule_resolver=resolver,
+        semgrep_runner=lambda d, c: SEMGREP, triage_agent=TriageStub(), reachability_agent=ReachStub(),
+    )
+    events, (findings, _r) = _drive(gen)
+    assert any(e.type is ET.needs_input and e.step == "rule_pick" for e in events)
+    assert seen["counts"] == {"integer-overflow": 2, "format-string": 1}
+    assert len(findings) == 1 and findings[0].rule.endswith("format-string")

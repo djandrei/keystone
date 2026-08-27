@@ -9,7 +9,7 @@ from .audit import audit
 from .auth.deps import require_auth
 from .config import get_settings
 from .context import get_db
-from .models import Analysis, AnalysisMode, AnalysisStatus, Binary, Report, Role
+from .models import Analysis, AnalysisMode, AnalysisStatus, Binary, Report, Role, VRFinding
 from .rbac import can_access_team, require_role, scope_to_teams
 from .services import get_or_create_settings
 from .storage import ObjectStore, get_object_store
@@ -41,6 +41,33 @@ def _signal_cancel(analysis_id: int) -> None:
     import redis
 
     redis.Redis.from_url(get_settings().redis_url).set(f"analysis:{analysis_id}:cancel", "1", ex=3600)
+
+
+def _signal_rule(analysis_id: int, rule: str) -> None:
+    fn = current_app.config.get("RULE_SIGNAL")
+    if fn:
+        fn(analysis_id, rule)
+        return
+    import redis
+
+    redis.Redis.from_url(get_settings().redis_url).set(f"analysis:{analysis_id}:rule", rule, ex=3600)
+
+
+def _finding_public(f: VRFinding) -> dict:
+    return {
+        "id": f.id,
+        "rule": f.rule,
+        "file": f.file,
+        "line": f.line,
+        "semgrep_message": f.semgrep_message,
+        "classification": f.classification.value if f.classification else None,
+        "risk_level": f.risk_level.value if f.risk_level else None,
+        "cwe_id": f.cwe_id,
+        "reasoning": f.reasoning,
+        "reachable": f.reachable,
+        "entry_path": f.entry_path,
+        "confidence": f.confidence,
+    }
 
 
 def _public(a: Analysis, *, with_result: bool = False) -> dict:
@@ -175,3 +202,34 @@ def cancel_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
     audit(db, g.principal, "analysis.cancel", "analysis", analysis_id)
     db.commit()
     return jsonify(status="canceling")
+
+
+@analyses_bp.post("/analyses/<int:analysis_id>/select-rule")
+@require_role(Role.admin, Role.analyst)
+def select_rule(analysis_id: int):  # type: ignore[no-untyped-def]
+    db = get_db()
+    a = db.get(Analysis, analysis_id)
+    if a is None:
+        return jsonify(error="not_found"), 404
+    if not can_access_team(g.principal, a.team_id):
+        return jsonify(error="forbidden"), 403
+    payload = request.get_json(silent=True) or {}
+    rule = payload.get("rule")
+    if not rule:
+        return jsonify(error="rule is required"), 400
+    _signal_rule(analysis_id, rule)
+    a.params = {**(a.params or {}), "rule": rule}
+    audit(db, g.principal, "analysis.select_rule", "analysis", analysis_id, {"rule": rule})
+    db.commit()
+    return jsonify(status="ok", rule=rule)
+
+
+@analyses_bp.get("/analyses/<int:analysis_id>/findings")
+@require_auth
+def get_findings(analysis_id: int):  # type: ignore[no-untyped-def]
+    db = get_db()
+    a = db.get(Analysis, analysis_id)
+    if a is None or not can_access_team(g.principal, a.team_id):
+        return jsonify(error="not_found"), 404
+    rows = db.query(VRFinding).filter_by(analysis_id=analysis_id).order_by(VRFinding.id).all()
+    return jsonify([_finding_public(f) for f in rows])

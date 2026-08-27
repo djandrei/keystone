@@ -61,6 +61,7 @@ def run(
     semgrep_runner: Any | None = None,
     triage_agent: Any | None = None,
     reachability_agent: Any | None = None,
+    rule_resolver: Any | None = None,
     budget: int | None = None,
 ) -> Generator[ProgressEvent, None, tuple[list[VRFinding], Report]]:
     seq = _Seq()
@@ -78,7 +79,16 @@ def run(
     )
 
     yield ProgressEvent.step_start("rule_pick", seq.next())
-    chosen = rule or (max(groups, key=lambda k: len(groups[k])) if groups else None)
+    counts = {k: len(v) for k, v in groups.items()}
+    if rule is not None:
+        chosen = rule
+    elif rule_resolver is not None and groups:
+        # pause for an interactive rule selection; the resolver blocks until the
+        # user answers (or times out to the auto-pick).
+        yield ProgressEvent(type=EventType.needs_input, seq=seq.next(), step="rule_pick", data={"classes": counts})
+        chosen = rule_resolver(counts)
+    else:
+        chosen = max(groups, key=lambda k: len(groups[k])) if groups else None
     selected = groups.get(chosen, []) if chosen else []
     yield ProgressEvent.step_finish("rule_pick", seq.next(), rule=chosen, selected=len(selected))
 
