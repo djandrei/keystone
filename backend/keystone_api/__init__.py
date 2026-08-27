@@ -8,6 +8,8 @@ from .db import init_db
 from .health import health_bp
 from .auth import auth_bp
 from .tokens_api import tokens_bp
+from .users_api import users_bp
+from .teams_api import teams_bp
 from .context import register_db
 
 __all__ = ["create_app", "Settings", "get_settings"]
@@ -26,5 +28,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(tokens_bp)
+    app.register_blueprint(users_bp)
+    app.register_blueprint(teams_bp)
 
     return app
