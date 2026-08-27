@@ -10,6 +10,7 @@ import { StatusPill } from "@/components/analysis/StatusPill";
 import { ReportView } from "@/components/analysis/ReportView";
 import { RulePicker } from "@/components/analysis/RulePicker";
 import { FindingsView } from "@/components/analysis/FindingsView";
+import { ExportBar } from "@/components/analysis/ExportBar";
 
 const ACTIVE = new Set(["queued", "running"]);
 
@@ -67,11 +68,14 @@ export function AnalysisPage() {
           <StatusPill status={analysis.status} />
           <span className="text-sm uppercase text-fg-muted">{analysis.mode}</span>
         </div>
-        {active && (
-          <Button variant="secondary" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
-            Cancel
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {analysis.status === "succeeded" && <ExportBar analysisId={analysis.id} markdown={report} />}
+          {active && (
+            <Button variant="secondary" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
+              Cancel
+            </Button>
+          )}
+        </div>
       </div>
 
       {needsInput && !rulePicked && (

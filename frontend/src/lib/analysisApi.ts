@@ -101,4 +101,6 @@ export const analysesApi = {
   findings: (id: number) => api.get<VRFindingRow[]>(`/analyses/${id}/findings`).then((r) => r.data),
   selectRule: (id: number, rule: string) =>
     api.post(`/analyses/${id}/select-rule`, { rule }).then((r) => r.data),
+  export: (id: number, format: "md" | "json" | "pdf") =>
+    api.get(`/analyses/${id}/export`, { params: { format }, responseType: "blob" }).then((r) => r.data as Blob),
 };

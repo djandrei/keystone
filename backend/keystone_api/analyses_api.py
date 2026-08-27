@@ -12,6 +12,7 @@ from .context import get_db
 from .models import Analysis, AnalysisMode, AnalysisStatus, Binary, Report, Role, VRFinding
 from .rbac import can_access_team, require_role, scope_to_teams
 from .services import get_or_create_settings
+from .export import report_json_bundle, text_to_pdf
 from .storage import ObjectStore, get_object_store
 
 analyses_bp = Blueprint("analyses", __name__)
@@ -264,3 +265,44 @@ def get_findings(analysis_id: int):  # type: ignore[no-untyped-def]
         return jsonify(error="not_found"), 404
     rows = db.query(VRFinding).filter_by(analysis_id=analysis_id).order_by(VRFinding.id).all()
     return jsonify([_finding_public(f) for f in rows])
+
+
+@analyses_bp.get("/analyses/<int:analysis_id>/export")
+@require_auth
+def export_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
+    db = get_db()
+    a = db.get(Analysis, analysis_id)
+    if a is None or not can_access_team(g.principal, a.team_id):
+        return jsonify(error="not_found"), 404
+    fmt = request.args.get("format", "md")
+
+    report = db.get(Report, analysis_id)
+    report_md = ""
+    if report is not None and report.storage_key:
+        try:
+            report_md = _store().get(report.storage_key).decode("utf-8")
+        except Exception:
+            report_md = ""
+
+    if fmt == "md":
+        return Response(
+            report_md or f"# Analysis #{analysis_id}\n",
+            mimetype="text/markdown",
+            headers={"Content-Disposition": f'attachment; filename="analysis-{analysis_id}.md"'},
+        )
+    if fmt == "json":
+        re_result = _public(a, with_result=True).get("re_result")
+        findings = [_finding_public(f) for f in db.query(VRFinding).filter_by(analysis_id=analysis_id).all()]
+        bundle = report_json_bundle(_public(a), re_result, findings, report_md)
+        return Response(
+            bundle,
+            mimetype="application/json",
+            headers={"Content-Disposition": f'attachment; filename="analysis-{analysis_id}.json"'},
+        )
+    if fmt == "pdf":
+        return Response(
+            text_to_pdf(report_md or f"Analysis #{analysis_id}"),
+            mimetype="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="analysis-{analysis_id}.pdf"'},
+        )
+    return jsonify(error="invalid_format", allowed=["md", "json", "pdf"]), 400
