@@ -5,10 +5,11 @@ vulnerability research**, built on `ghidra-headless-mcp`. See
 [`../docs/design.md`](../docs/design.md) and
 [`../docs/implementation-plan.md`](../docs/implementation-plan.md).
 
-**Milestone status:** M1 + M2 complete — multi-user app (JWT auth + API tokens,
-users/teams/RBAC, admin system-settings, branded React shell) plus the RE path
-end-to-end: upload a binary, run an async RE analysis, watch Steps stream live, and
-review the saved report. Everything is test-gated and comes up with one command.
+**Milestone status:** M1 + M2 + M3 complete — multi-user app (JWT auth + API
+tokens, users/teams/RBAC, admin system-settings, branded React shell) plus both
+analysis paths end-to-end: RE (upload -> async analysis -> live Steps -> report)
+and VR (Semgrep -> interactive rule pick -> triage + reachability -> vulnerability
+findings). Everything is test-gated and comes up with one command.
 
 ## Quick start (everything in Docker Compose)
 
@@ -77,9 +78,10 @@ make up            # in one terminal
 make e2e           # in another — drives the full M1 flow in a headless browser
 ```
 
-The e2e proves both milestones: M1 (login → create analyst + team → settings →
-analyst login) and M2 (upload → run RE → watch Steps → report → history). The M2
-flow needs the worker running the deterministic fake engine (no Ghidra/LLM):
+The e2e proves all three milestones: M1 (login → provision analyst + team →
+settings), M2 (upload → run RE → Steps → report → history) and M3 (run VR → pick a
+rule class → triage + reachability findings). M2/M3 need the worker running the
+deterministic fake engine (no Ghidra/LLM/Semgrep):
 
 ```bash
 make up            # in one terminal

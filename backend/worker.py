@@ -20,7 +20,7 @@ from keystone_engine.llm import configure_lm, make_lm
 from keystone_engine.mcp import GhidraMcpClient
 from keystone_engine.events import EventType, ProgressEvent
 from keystone_engine.pipelines import BinaryRef, re_path
-from keystone_engine.results import Report, REResult
+from keystone_engine.results import Report, REResult, VRFinding
 
 settings = get_settings()
 app = Celery("keystone", broker=settings.redis_url, backend=settings.redis_url)
@@ -75,6 +75,42 @@ def _fake_pipeline(_a):
     return (result, report)
 
 
+def _fake_vr_pipeline(analysis_id: int, params: dict):
+    """Deterministic canned VR run with the interactive rule pick (engine_fake)."""
+    def gen(_a):
+        counts = {"kernel-integer-wraparound": 2, "format-string": 1}
+        yield ProgressEvent.step_start("decompile", 1)
+        yield ProgressEvent.step_finish("decompile", 2, count=4)
+        yield ProgressEvent.step_start("semgrep", 3)
+        yield ProgressEvent.step_finish("semgrep", 4, total=3, classes=counts)
+        yield ProgressEvent.step_start("rule_pick", 5)
+        if params.get("rule"):
+            chosen = params["rule"]
+        elif params.get("interactive"):
+            yield ProgressEvent(type=EventType.needs_input, seq=6, step="rule_pick", data={"classes": counts})
+            chosen = _make_rule_resolver(analysis_id)(counts)
+        else:
+            chosen = max(counts, key=lambda k: counts[k])
+        yield ProgressEvent.step_finish("rule_pick", 7, rule=chosen, selected=2)
+        yield ProgressEvent.step_start("triage", 8)
+        yield ProgressEvent.step_finish("triage", 9, triaged=2)
+        yield ProgressEvent.step_start("reachability", 10)
+        yield ProgressEvent.step_finish("reachability", 11, assessed=1)
+        findings = [
+            VRFinding(rule=chosen, file="parse_header.c", line=3, semgrep_message="unchecked length into memcpy",
+                      classification="true_positive", risk_level="high", cwe_id="CWE-190",
+                      reasoning="length is attacker-controlled and feeds memcpy without a bound check",
+                      reachable="yes", entry_path="DriverIoControl -> parse_header", confidence="high"),
+            VRFinding(rule=chosen, file="log.c", line=8, semgrep_message="benign",
+                      classification="false_positive", risk_level="informational"),
+        ]
+        report = Report(format="md", content=f"# VR Analysis\n\n**Rule class:** {chosen}\n\nCWE-190 in parse_header\n")
+        yield ProgressEvent(type=EventType.done, seq=12, step="done", data={"findings": len(findings)})
+        return (findings, report)
+
+    return gen
+
+
 @app.task(name="run_analysis")
 def run_analysis(analysis_id: int) -> str:
     init_db(settings.database_url)
@@ -95,9 +131,14 @@ def run_analysis(analysis_id: int) -> str:
         ref = BinaryRef(program=binary.ghidra_program_name, sha256=binary.sha256, filename=binary.filename)
 
         if settings.engine_fake:
+            if analysis.mode is AnalysisMode.vr:
+                pipeline = _fake_vr_pipeline(analysis_id, analysis.params or {})
+                persist = lambda s, a, r: persist_vr_result(s, a, r, store=store)
+            else:
+                pipeline = _fake_pipeline
+                persist = lambda s, a, r: persist_re_result(s, a, r, store=store)
             status = run_analysis_core(
-                analysis_id, session, pipeline=_fake_pipeline,
-                persist=lambda s, a, r: persist_re_result(s, a, r, store=store),
+                analysis_id, session, pipeline=pipeline, persist=persist,
                 publish=_publish, is_canceled=_is_canceled,
             )
             return status.value
