@@ -27,22 +27,29 @@ settings_bp = Blueprint("settings", __name__, url_prefix="/settings")
 class UpdateSettingsRequest(BaseModel):
     llm_endpoint_url: str | None = Field(default=None, max_length=255)
     default_model: str | None = Field(default=None, max_length=120)
+    triage_model: str | None = Field(default=None, max_length=120)
+    triage_endpoint_url: str | None = Field(default=None, max_length=255)
     semgrep_config: dict | None = None
 
 
 class TestConnectionRequest(BaseModel):
     llm_endpoint_url: str | None = Field(default=None, max_length=255)
+    target: str = "analysis"  # or "triage"
 
 
 def _public(row) -> dict:  # type: ignore[no-untyped-def]
     return {
         "llm_endpoint_url": row.llm_endpoint_url,
         "default_model": row.default_model,
+        "triage_model": row.triage_model,
+        "triage_endpoint_url": row.triage_endpoint_url,
         "semgrep_config": row.semgrep_config,
         "updated_by": row.updated_by,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         # whether a deployment key is configured — never the key itself
         "llm_key_configured": bool(get_settings().llm_api_key),
+        # triage has a key if a triage-specific one is set OR it falls back to the LLM key
+        "triage_key_configured": bool(get_settings().triage_api_key or get_settings().llm_api_key),
     }
 
 
@@ -116,7 +123,13 @@ def test_connection_route():  # type: ignore[no-untyped-def]
         return jsonify(error="invalid_request", detail=e.errors()), 400
     db = get_db()
     row = get_or_create_settings(db)
-    url = body.llm_endpoint_url or row.llm_endpoint_url
+    cfg = get_settings()
+    if body.target == "triage":
+        url = body.llm_endpoint_url or row.triage_endpoint_url or row.llm_endpoint_url
+        key = cfg.triage_api_key or cfg.llm_api_key
+    else:
+        url = body.llm_endpoint_url or row.llm_endpoint_url
+        key = cfg.llm_api_key
     if not url:
         return jsonify(ok=False, error="no_endpoint_configured"), 400
-    return jsonify(probe_llm(url, get_settings().llm_api_key))
+    return jsonify(probe_llm(url, key))

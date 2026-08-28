@@ -77,3 +77,64 @@ def test_test_connection(app, client, session, monkeypatch):
         json={"llm_endpoint_url": "https://llm.example/api"},
     )
     assert r.status_code == 200 and r.get_json() == {"ok": True, "models": ["m1", "m2"]}
+
+
+def test_settings_expose_and_update_triage_fields(app, client, session):
+    _bootstrap(session)
+    admin = _tok(client, "admin", "change-me")
+    r = client.put(
+        "/settings",
+        headers=_h(admin),
+        json={
+            "llm_endpoint_url": "https://main/api",
+            "default_model": "Big",
+            "triage_model": "Small",
+            "triage_endpoint_url": "https://triage/api",
+        },
+    )
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["triage_model"] == "Small" and body["triage_endpoint_url"] == "https://triage/api"
+    assert "triage_key_configured" in body
+    # GET reflects it
+    got = client.get("/settings", headers=_h(admin)).get_json()
+    assert got["triage_model"] == "Small"
+
+
+def test_test_connection_target_triage_uses_triage_endpoint_and_key(
+    app, client, session, monkeypatch
+):
+    _bootstrap(session)
+    from keystone_api import settings_api
+    from keystone_api.config import Settings
+
+    monkeypatch.setattr(
+        settings_api,
+        "get_settings",
+        lambda: Settings(env="test", llm_api_key="LK", triage_api_key="TK"),
+    )
+    captured = {}
+    monkeypatch.setattr(
+        settings_api,
+        "probe_llm",
+        lambda url, key, timeout=5.0: captured.update(url=url, key=key)
+        or {"ok": True, "models": []},
+    )
+    admin = _tok(client, "admin", "change-me")
+    client.put(
+        "/settings",
+        headers=_h(admin),
+        json={
+            "llm_endpoint_url": "https://main/api",
+            "default_model": "Big",
+            "triage_model": "Small",
+            "triage_endpoint_url": "https://triage/api",
+        },
+    )
+
+    # analysis target -> main endpoint + LLM key
+    client.post("/settings/test-connection", headers=_h(admin), json={"target": "analysis"})
+    assert captured == {"url": "https://main/api", "key": "LK"}
+    # triage target -> triage endpoint + triage key
+    client.post("/settings/test-connection", headers=_h(admin), json={"target": "triage"})
+    assert captured == {"url": "https://triage/api", "key": "TK"}
