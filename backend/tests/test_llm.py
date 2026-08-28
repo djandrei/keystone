@@ -70,3 +70,30 @@ def test_fake_lm_is_deterministic():
     dspy.configure(lm=fake_lm([{"answer": "42"}]))
     out = dspy.Predict("question -> answer")(question="what is it?")
     assert out.answer == "42"
+
+
+def test_resolve_lm_target_openai_and_anthropic():
+    from keystone_engine.llm.lm import resolve_lm_target
+
+    # OpenAI-compatible: openai/ prefix, api_base verbatim
+    assert resolve_lm_target("https://llm.example/api", "qwen/qwen3-8b") == (
+        "openai/qwen/qwen3-8b",
+        "https://llm.example/api",
+    )
+    # Anthropic-compatible (MiniMax): anthropic/ prefix, api_base -> /messages
+    assert resolve_lm_target("https://api.minimax.io/anthropic/v1", "MiniMax-M3") == (
+        "anthropic/MiniMax-M3",
+        "https://api.minimax.io/anthropic/v1/messages",
+    )
+    # a bare anthropic base still resolves to /v1/messages
+    assert resolve_lm_target("https://api.minimax.io/anthropic", "MiniMax-M3")[1] == (
+        "https://api.minimax.io/anthropic/v1/messages"
+    )
+    # an explicit provider prefix on the model wins over inference
+    assert resolve_lm_target("https://api.minimax.io/anthropic/v1", "openai/foo")[0] == "openai/foo"
+
+
+def test_make_lm_anthropic_endpoint():
+    lm = make_lm("https://api.minimax.io/anthropic/v1", "MiniMax-M3", "k", cache=False)
+    assert lm.model == "anthropic/MiniMax-M3"
+    assert lm.kwargs["api_base"] == "https://api.minimax.io/anthropic/v1/messages"

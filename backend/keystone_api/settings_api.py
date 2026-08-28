@@ -46,11 +46,22 @@ def _public(row) -> dict:  # type: ignore[no-untyped-def]
     }
 
 
+def _probe_target(url: str, api_key: str) -> tuple[str, dict]:
+    """The /models endpoint + auth headers for a provider (OpenAI vs Anthropic)."""
+    base = url.rstrip("/")
+    endpoint = base + "/models"
+    if "anthropic" in base.lower():
+        headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
+    else:
+        headers = {"Authorization": f"Bearer {api_key}"}
+    return endpoint, headers
+
+
 def probe_llm(url: str, api_key: str, timeout: float = 5.0) -> dict:
-    """Live reachability probe against an OpenAI-compatible endpoint's /models.
-    Returns {ok, models?|error}. Isolated so tests can monkeypatch it."""
-    endpoint = url.rstrip("/") + "/models"
-    req = urllib.request.Request(endpoint, headers={"Authorization": f"Bearer {api_key}"})
+    """Live reachability probe against the endpoint's /models. Returns
+    {ok, models?|error}. Isolated so tests can monkeypatch it."""
+    endpoint, headers = _probe_target(url, api_key)
+    req = urllib.request.Request(endpoint, headers=headers)
     try:
         with urllib.request.urlopen(
             req, timeout=timeout
