@@ -4,7 +4,7 @@ const ADMIN = { username: "admin", password: "change-me" };
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:8080";
 
 function elf(): Buffer {
-  const buf = Buffer.alloc(64);
+  const buf = Buffer.alloc(512);
   buf.set([0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01], 0);
   buf.writeUInt16LE(0x3e, 18);
   buf.writeBigUInt64LE(BigInt(Date.now()), 40);
