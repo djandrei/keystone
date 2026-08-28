@@ -8,6 +8,8 @@ import time
 
 from flask import g, request
 
+from .metrics import incr_http
+
 
 def build_request_log(
     method: str, path: str, status: int, duration_ms: float, request_id: str | None = None
@@ -55,6 +57,21 @@ def init_error_tracking(dsn: str) -> bool:
         return False
 
 
+def _metrics_redis(app):  # type: ignore[no-untyped-def]
+    """A cached Redis client for the response counters, or None if unavailable.
+    Construction never connects, so this is safe even with Redis down."""
+    if "metrics_redis" not in app.extensions:
+        client = None
+        try:
+            import redis
+
+            client = redis.Redis.from_url(app.config["KEYSTONE"].redis_url)
+        except Exception:
+            client = None
+        app.extensions["metrics_redis"] = client
+    return app.extensions["metrics_redis"]
+
+
 def register_observability(app) -> None:  # type: ignore[no-untyped-def]
     configure_logging()
     init_error_tracking(getattr(app.config.get("KEYSTONE"), "sentry_dsn", "") or "")
@@ -66,6 +83,9 @@ def register_observability(app) -> None:  # type: ignore[no-untyped-def]
 
     @app.after_request
     def _log_request(resp):  # type: ignore[no-untyped-def]
+        # the global 500 handler returns a real response, so this runs on errors
+        # too — 5xx are logged and counted here, at one point (no double-count).
+        incr_http(_metrics_redis(app), resp.status_code)
         start = getattr(g, "_start", None)
         if start is not None:
             duration_ms = (time.perf_counter() - start) * 1000

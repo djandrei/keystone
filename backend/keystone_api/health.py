@@ -59,7 +59,11 @@ def readyz():  # type: ignore[no-untyped-def]
 @health_bp.get("/metrics")
 @require_role(Role.admin)
 def metrics():  # type: ignore[no-untyped-def]
+    from datetime import UTC, datetime, timedelta
+
     from sqlalchemy import func
+
+    from .metrics import read_http_counters
 
     db = get_db()
     counts = dict(
@@ -75,9 +79,28 @@ def metrics():  # type: ignore[no-untyped-def]
     durations = [(f - s).total_seconds() for s, f in rows if f and s]
     avg = round(sum(durations) / len(durations), 3) if durations else None
 
+    since = datetime.now(UTC) - timedelta(hours=24)
+    recent_failures = (
+        db.query(func.count(Analysis.id))
+        .filter(Analysis.status == AnalysisStatus.failed, Analysis.finished_at >= since)
+        .scalar()
+    )
+
+    settings = current_app.config["KEYSTONE"]
+    redis = None
+    try:
+        import redis as _redis
+
+        redis = _redis.Redis.from_url(settings.redis_url)
+    except Exception:
+        redis = None
+
     return jsonify(
         analyses_by_status=by_status,
         active=by_status["queued"] + by_status["running"],
         completed=len(durations),
         avg_duration_seconds=avg,
+        analyses_failed=by_status["failed"],
+        recent_failures_24h=int(recent_failures or 0),
+        http_responses=read_http_counters(redis),
     )
