@@ -18,6 +18,9 @@ export default defineConfig({
       include: ["src/**/*.{ts,tsx}"],
       // entry point, type decls, test files and setup aren't unit-testable code
       exclude: ["src/main.tsx", "src/**/*.d.ts", "src/**/*.{test,spec}.{ts,tsx}", "src/tests/**"],
+      // statements/lines/branches gate at 80%; functions is lower because v8 counts
+      // every uninvoked callback/handler as an uncovered function.
+      thresholds: { statements: 80, lines: 80, branches: 80, functions: 65 },
     },
   },
 });

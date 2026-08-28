@@ -25,9 +25,9 @@ typecheck-be:  ; -$(COMPOSE) run --rm backend mypy keystone_api
 # Full CI gate (lint + typecheck + tests + coverage + build). CI can call `make ci`.
 ci: ci-be ci-fe
 ci-be:
-	$(COMPOSE) run --rm backend sh -c "ruff check . && black --check . && pytest --cov=keystone_api --cov=keystone_engine --cov-fail-under=80"
+	$(COMPOSE) run --rm backend sh -c "ruff check . && black --check . && pytest --cov=keystone_api --cov=keystone_engine --cov-fail-under=90"
 ci-fe:
-	$(COMPOSE) run --rm frontend sh -c "npm run typecheck && npm run lint && npm test && npm run build"
+	$(COMPOSE) run --rm frontend sh -c "npm run typecheck && npm run lint && npx vitest run --coverage && npm run build"
 
 migrate:   ; $(COMPOSE) run --rm backend alembic upgrade head
 seed:      ; $(COMPOSE) run --rm backend python -m keystone_api.cli seed
