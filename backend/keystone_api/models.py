@@ -243,6 +243,9 @@ class SystemSettings(Base):
     id: Mapped[int] = mapped_column(primary_key=True)  # singleton row id=1
     llm_endpoint_url: Mapped[str | None] = mapped_column(String(255))
     default_model: Mapped[str | None] = mapped_column(String(120))
+    # Optional separate model for the high-volume VR triage step (two-model cascade).
+    triage_model: Mapped[str | None] = mapped_column(String(120))
+    triage_endpoint_url: Mapped[str | None] = mapped_column(String(255))
     semgrep_config: Mapped[dict | None] = mapped_column(JsonB)
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     updated_at: Mapped[datetime] = mapped_column(

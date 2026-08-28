@@ -66,6 +66,8 @@ class Settings(BaseSettings):
 
     # --- LLM (endpoint + default model live in system_settings; key is a secret) ---
     llm_api_key: str = ""
+    # Optional separate key for the triage endpoint; blank -> reuse llm_api_key.
+    triage_api_key: str = ""
 
 
 @lru_cache
