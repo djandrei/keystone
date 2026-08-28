@@ -55,7 +55,9 @@ def test_lifecycle_persists_on_real_postgres_and_publishes_to_redis(pg):
     services.bootstrap(s)
     team = s.query(Team).filter_by(name="Default").one()
     u = s.query(User).filter_by(username="admin").one()
-    b = Binary(team_id=team.id, sha256="a" * 64, filename="x", size=10, storage_key="k", uploaded_by=u.id)
+    b = Binary(
+        team_id=team.id, sha256="a" * 64, filename="x", size=10, storage_key="k", uploaded_by=u.id
+    )
     s.add(b)
     s.flush()
     a = Analysis(team_id=team.id, binary_id=b.id, mode=AnalysisMode.re, created_by=u.id)

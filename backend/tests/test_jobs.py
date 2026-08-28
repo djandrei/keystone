@@ -90,7 +90,10 @@ def test_failure_records_error_and_logs_traceback(session, caplog):
 
     with caplog.at_level("ERROR", logger="keystone.jobs"):
         status = run_analysis_core(
-            a.id, session, pipeline=pipeline, persist=lambda *x: None,
+            a.id,
+            session,
+            pipeline=pipeline,
+            persist=lambda *x: None,
             publish=lambda i, e: published.append(e),
         )
     assert status is AnalysisStatus.failed

@@ -333,15 +333,9 @@ def _assign_default_project(session: Session, flush_context, instances) -> None:
         for b in pending:
             proj = by_team.get(b.team_id)
             if proj is None:
-                proj = (
-                    session.query(Project)
-                    .filter_by(team_id=b.team_id, is_default=True)
-                    .first()
-                )
+                proj = session.query(Project).filter_by(team_id=b.team_id, is_default=True).first()
                 if proj is None:
-                    proj = Project(
-                        team_id=b.team_id, name=DEFAULT_PROJECT_NAME, is_default=True
-                    )
+                    proj = Project(team_id=b.team_id, name=DEFAULT_PROJECT_NAME, is_default=True)
                     session.add(proj)
                 by_team[b.team_id] = proj
             b.project = proj

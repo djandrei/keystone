@@ -77,8 +77,17 @@ def test_before_flush_assigns_per_team_in_one_flush(session):
     t2 = Team(name="T2")  # created directly -> no default project yet
     session.add(t2)
     session.flush()
-    b1 = Binary(team_id=default_team.id, sha256="1" * 64, filename="a", size=10, storage_key="k1", uploaded_by=u.id)
-    b2 = Binary(team_id=t2.id, sha256="2" * 64, filename="b", size=10, storage_key="k2", uploaded_by=u.id)
+    b1 = Binary(
+        team_id=default_team.id,
+        sha256="1" * 64,
+        filename="a",
+        size=10,
+        storage_key="k1",
+        uploaded_by=u.id,
+    )
+    b2 = Binary(
+        team_id=t2.id, sha256="2" * 64, filename="b", size=10, storage_key="k2", uploaded_by=u.id
+    )
     session.add_all([b1, b2])
     session.commit()  # one flush: each binary lands in ITS team's default bucket
     p1 = session.query(Project).filter_by(team_id=default_team.id, is_default=True).one()

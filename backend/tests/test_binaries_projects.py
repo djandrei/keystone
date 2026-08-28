@@ -128,10 +128,14 @@ def test_move_forbidden_for_non_member(app, client, session):
     tok = _tok(client)
     bid = _upload(client, tok, team.id, "f.elf", ELF).get_json()["id"]
     other = Team(name="Other2")
-    ana = User(username="ana2", email="a2@x", password_hash=hash_password("pw123456"), role=Role.analyst)
+    ana = User(
+        username="ana2", email="a2@x", password_hash=hash_password("pw123456"), role=Role.analyst
+    )
     session.add_all([other, ana])
     session.flush()
     session.add(TeamMember(team_id=other.id, user_id=ana.id, team_role=TeamRole.member))
     session.commit()
-    r = client.patch(f"/binaries/{bid}", headers=_h(_tok(client, "ana2", "pw123456")), json={"project_id": 1})
+    r = client.patch(
+        f"/binaries/{bid}", headers=_h(_tok(client, "ana2", "pw123456")), json={"project_id": 1}
+    )
     assert r.status_code == 403

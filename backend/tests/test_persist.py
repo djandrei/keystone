@@ -40,7 +40,9 @@ def _analysis(session, mode):
     team = session.query(Team).filter_by(name="Default").one()
     u = session.query(User).filter_by(username="admin").one()
     pid = team.id  # default project auto-assigned by the hook
-    b = Binary(team_id=team.id, sha256="a" * 64, filename="x", size=10, storage_key="k", uploaded_by=u.id)
+    b = Binary(
+        team_id=team.id, sha256="a" * 64, filename="x", size=10, storage_key="k", uploaded_by=u.id
+    )
     session.add(b)
     session.flush()
     _ = pid
@@ -72,9 +74,19 @@ def test_persist_vr_result(session):
     a = _analysis(session, AnalysisMode.vr)
     store = FakeStore()
     findings = [
-        EngineVR(rule="r1", file="f.c", line=3, semgrep_message="m",
-                 classification="true_positive", risk_level="high", cwe_id="CWE-798",
-                 reasoning="x", reachable="yes", entry_path="main->f", confidence="high"),
+        EngineVR(
+            rule="r1",
+            file="f.c",
+            line=3,
+            semgrep_message="m",
+            classification="true_positive",
+            risk_level="high",
+            cwe_id="CWE-798",
+            reasoning="x",
+            reachable="yes",
+            entry_path="main->f",
+            confidence="high",
+        ),
         EngineVR(rule="r2", classification="bogus", risk_level=None),  # coercion edge
     ]
     persist_vr_result(session, a, (findings, EngineReport(content="# VR")), store=store)

@@ -191,26 +191,26 @@ def _task_descriptions(db, items: list[Analysis]) -> dict[int, dict]:
     )
 
     re_ids = [
-        a.id
-        for a in items
-        if a.mode is AnalysisMode.re and a.status is AnalysisStatus.succeeded
+        a.id for a in items if a.mode is AnalysisMode.re and a.status is AnalysisStatus.succeeded
     ]
     purposes = (
-        dict(db.query(REResult.analysis_id, REResult.purpose).filter(REResult.analysis_id.in_(re_ids)))
+        dict(
+            db.query(REResult.analysis_id, REResult.purpose).filter(
+                REResult.analysis_id.in_(re_ids)
+            )
+        )
         if re_ids
         else {}
     )
 
     vr_ids = [
-        a.id
-        for a in items
-        if a.mode is AnalysisMode.vr and a.status is AnalysisStatus.succeeded
+        a.id for a in items if a.mode is AnalysisMode.vr and a.status is AnalysisStatus.succeeded
     ]
     vr_by_analysis: dict[int, list[tuple]] = {aid: [] for aid in vr_ids}
     if vr_ids:
-        rows = db.query(
-            VRFinding.analysis_id, VRFinding.risk_level, VRFinding.cwe_id
-        ).filter(VRFinding.analysis_id.in_(vr_ids))
+        rows = db.query(VRFinding.analysis_id, VRFinding.risk_level, VRFinding.cwe_id).filter(
+            VRFinding.analysis_id.in_(vr_ids)
+        )
         for aid, risk, cwe in rows:
             vr_by_analysis[aid].append((risk, cwe))
 

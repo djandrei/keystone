@@ -48,8 +48,13 @@ def _add_binary(size=10, sha="s" * 64):
         u = s.query(User).filter_by(username="admin").one()
         pid = s.query(Project).filter_by(team_id=team.id, is_default=True).one().id
         b = Binary(
-            team_id=team.id, project_id=pid, sha256=sha, filename="x", size=size,
-            storage_key="k" + sha[:6], uploaded_by=u.id,
+            team_id=team.id,
+            project_id=pid,
+            sha256=sha,
+            filename="x",
+            size=size,
+            storage_key="k" + sha[:6],
+            uploaded_by=u.id,
         )
         s.add(b)
         s.commit()

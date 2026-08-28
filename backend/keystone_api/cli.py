@@ -10,15 +10,27 @@ from .db import init_db, session_scope
 
 
 def _prune(argv: list[str]) -> int:
-    p = argparse.ArgumentParser(prog="prune-binaries", description="Delete binaries + all attached rows/objects/files.")
+    p = argparse.ArgumentParser(
+        prog="prune-binaries", description="Delete binaries + all attached rows/objects/files."
+    )
     sel = p.add_mutually_exclusive_group(required=True)
     sel.add_argument(
-        "--max-bytes", type=int, metavar="N", help="delete binaries with size <= N (e.g. 256 for stubs)"
+        "--max-bytes",
+        type=int,
+        metavar="N",
+        help="delete binaries with size <= N (e.g. 256 for stubs)",
     )
     sel.add_argument(
-        "--id", type=int, action="append", dest="ids", metavar="ID", help="delete this binary id (repeatable)"
+        "--id",
+        type=int,
+        action="append",
+        dest="ids",
+        metavar="ID",
+        help="delete this binary id (repeatable)",
     )
-    p.add_argument("--dry-run", action="store_true", help="show what would be deleted; change nothing")
+    p.add_argument(
+        "--dry-run", action="store_true", help="show what would be deleted; change nothing"
+    )
     p.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     args = p.parse_args(argv)
 

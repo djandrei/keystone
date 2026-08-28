@@ -54,7 +54,10 @@ def test_default_project_is_protected(app, client, session):
     team = _team(session)
     tok = _tok(client)
     default = session.query(Project).filter_by(team_id=team.id, is_default=True).one()
-    assert client.patch(f"/projects/{default.id}", headers=_h(tok), json={"name": "x"}).status_code == 400
+    assert (
+        client.patch(f"/projects/{default.id}", headers=_h(tok), json={"name": "x"}).status_code
+        == 400
+    )
     assert client.delete(f"/projects/{default.id}", headers=_h(tok)).status_code == 400
 
 
@@ -116,7 +119,9 @@ def test_rename_and_delete_not_found(app, client, session):
 def test_rename_invalid_request(app, client, session):
     team = _team(session)
     tok = _tok(client)
-    pid = client.post("/projects", headers=_h(tok), json={"team_id": team.id, "name": "p"}).get_json()["id"]
+    pid = client.post(
+        "/projects", headers=_h(tok), json={"team_id": team.id, "name": "p"}
+    ).get_json()["id"]
     assert client.patch(f"/projects/{pid}", headers=_h(tok), json={"name": ""}).status_code == 400
 
 
@@ -124,7 +129,9 @@ def test_rename_to_duplicate_name(app, client, session):
     team = _team(session)
     tok = _tok(client)
     client.post("/projects", headers=_h(tok), json={"team_id": team.id, "name": "a"})
-    pid = client.post("/projects", headers=_h(tok), json={"team_id": team.id, "name": "b"}).get_json()["id"]
+    pid = client.post(
+        "/projects", headers=_h(tok), json={"team_id": team.id, "name": "b"}
+    ).get_json()["id"]
     r = client.patch(f"/projects/{pid}", headers=_h(tok), json={"name": "a"})
     assert r.status_code == 409 and r.get_json()["error"] == "name_taken"
 
@@ -134,13 +141,17 @@ def test_rename_delete_forbidden_for_non_member(app, client, session):
     default_team = session.query(Team).filter_by(name="Default").one()
     proj = Project(team_id=default_team.id, name="secret")
     other = Team(name="Other")
-    ana = User(username="ana", email="a@x", password_hash=hash_password("pw123456"), role=Role.analyst)
+    ana = User(
+        username="ana", email="a@x", password_hash=hash_password("pw123456"), role=Role.analyst
+    )
     session.add_all([proj, other, ana])
     session.flush()
     session.add(TeamMember(team_id=other.id, user_id=ana.id, team_role=TeamRole.member))
     session.commit()
     tok = _tok(client, "ana", "pw123456")
-    assert client.patch(f"/projects/{proj.id}", headers=_h(tok), json={"name": "x"}).status_code == 403
+    assert (
+        client.patch(f"/projects/{proj.id}", headers=_h(tok), json={"name": "x"}).status_code == 403
+    )
     assert client.delete(f"/projects/{proj.id}", headers=_h(tok)).status_code == 403
 
 
@@ -149,8 +160,20 @@ def test_binary_count_and_ordering(app, client, session):
     u = session.query(User).filter_by(username="admin").one()
     tok = _tok(client)
     client.post("/projects", headers=_h(tok), json={"team_id": team.id, "name": "zzz"})
-    pid = client.post("/projects", headers=_h(tok), json={"team_id": team.id, "name": "aaa"}).get_json()["id"]
-    session.add(Binary(team_id=team.id, project_id=pid, sha256="a" * 64, filename="x", size=10, storage_key="k", uploaded_by=u.id))
+    pid = client.post(
+        "/projects", headers=_h(tok), json={"team_id": team.id, "name": "aaa"}
+    ).get_json()["id"]
+    session.add(
+        Binary(
+            team_id=team.id,
+            project_id=pid,
+            sha256="a" * 64,
+            filename="x",
+            size=10,
+            storage_key="k",
+            uploaded_by=u.id,
+        )
+    )
     session.commit()
     projs = client.get(f"/projects?team_id={team.id}", headers=_h(tok)).get_json()
     names = [p["name"] for p in projs]
