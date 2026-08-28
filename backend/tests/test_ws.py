@@ -108,3 +108,21 @@ def test_relay_replays_snapshot_then_streams_until_terminal():
         "step_finish",
         "done",
     ]  # stops at terminal, drops the trailing message
+
+
+def test_authorize_not_found(app, session):
+    ana, _team, _a = _analysis_with_member(session)
+    token = create_access_token(ana, user_team_ids(session, ana.id))
+    got, err = authorize_stream(token, 999999, session)
+    assert got is None and err == "not_found"
+
+
+def test_relay_handles_bytes_and_malformed_payloads():
+    ws = FakeWS()
+    messages = [
+        {"type": "message", "data": b'{"type": "step_start"}'},  # bytes -> decoded
+        {"type": "message", "data": "not json"},  # ValueError swallowed
+        {"type": "message", "data": json.dumps({"type": "done"})},
+    ]
+    relay(ws, "analysis:1", None, FakePubSub(messages))
+    assert ws.sent == ['{"type": "step_start"}', "not json", '{"type": "done"}']
