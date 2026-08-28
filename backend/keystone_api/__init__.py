@@ -11,6 +11,7 @@ from .binaries_api import binaries_bp
 from .config import Settings, get_settings
 from .context import register_db
 from .db import init_db
+from .errors import register_error_handlers
 from .health import health_bp
 from .observability import register_observability
 from .settings_api import settings_bp
@@ -42,6 +43,7 @@ def create_app(settings: Settings | None = None) -> Flask:
 
     register_db(app)
     register_observability(app)
+    register_error_handlers(app)
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(tokens_bp)
