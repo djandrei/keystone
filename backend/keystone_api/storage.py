@@ -17,6 +17,7 @@ class ObjectStore(Protocol):
     def put(self, key: str, data: bytes) -> None: ...
     def exists(self, key: str) -> bool: ...
     def get(self, key: str) -> bytes: ...
+    def delete(self, key: str) -> None: ...
 
 
 class S3ObjectStore:
@@ -46,6 +47,10 @@ class S3ObjectStore:
 
     def get(self, key: str) -> bytes:
         return self._client.get_object(Bucket=self._bucket, Key=key)["Body"].read()
+
+    def delete(self, key: str) -> None:
+        # S3 delete_object is idempotent — deleting a missing key is not an error.
+        self._client.delete_object(Bucket=self._bucket, Key=key)
 
 
 @lru_cache
