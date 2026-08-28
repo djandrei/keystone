@@ -6,6 +6,7 @@ publish/cancel) into the framework-free `run_analysis_core`."""
 from __future__ import annotations
 
 import json
+import logging
 import time
 
 from celery import Celery
@@ -13,6 +14,7 @@ from celery import Celery
 from keystone_api.config import get_settings
 from keystone_api.db import get_session, init_db
 from keystone_api.jobs import run_analysis_core
+from keystone_api.llm_config import resolve_triage_target
 from keystone_api.models import Analysis, AnalysisMode, Binary
 from keystone_api.persist import persist_re_result, persist_vr_result
 from keystone_api.services import get_or_create_settings
@@ -213,6 +215,21 @@ def run_analysis(analysis_id: int) -> str:
                 make_lm(sysset.llm_endpoint_url, sysset.default_model, settings.llm_api_key)
             )
 
+        # Two-model cascade: bind a cheaper triage LM to the VR triage agent, if
+        # configured. Everything else runs on the global (analysis) LM.
+        triage_agent = None
+        triage_target = resolve_triage_target(sysset, settings)
+        if triage_target:
+            from keystone_engine.signatures.triage import make_triage_agent
+
+            triage_agent = make_triage_agent()
+            triage_agent.set_lm(make_lm(*triage_target))
+            logging.getLogger("keystone.worker").info(
+                "VR triage on separate model %s (analysis: %s)",
+                triage_target[1],
+                sysset.default_model,
+            )
+
         sample_path = f"{settings.sample_dir}/{binary.sha256}_{binary.ghidra_program_name}"
         ref = BinaryRef(
             program=binary.ghidra_program_name, sha256=binary.sha256, filename=binary.filename
@@ -235,6 +252,7 @@ def run_analysis(analysis_id: int) -> str:
                     client,
                     rule=params.get("rule"),
                     rule_resolver=resolver,
+                    triage_agent=triage_agent,
                     semgrep_config=settings.semgrep_config,
                 )
             return re_path.run(ref, client)
