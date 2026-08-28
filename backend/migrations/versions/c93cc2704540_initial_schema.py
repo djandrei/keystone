@@ -331,3 +331,9 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_users_role"), table_name="users")
     op.drop_table("users")
     # ### end Alembic commands ###
+    # drop the enum TYPEs too, so a re-upgrade doesn't hit "type already exists"
+    # (only meaningful on PostgreSQL; a no-op elsewhere)
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        for enum in ("risklevel", "classification", "analysisstatus", "analysismode", "teamrole", "role"):
+            op.execute(f"DROP TYPE IF EXISTS {enum}")

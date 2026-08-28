@@ -1,7 +1,7 @@
 COMPOSE = docker compose -f infra/docker-compose.yml
 COMPOSE_E2E = $(COMPOSE) -f infra/docker-compose.e2e.yml
 
-.PHONY: up down logs ps build test test-be test-fe lint migrate seed bootstrap e2e engine-fake audit ci ci-be ci-fe typecheck-be
+.PHONY: up down logs ps build test test-be test-fe lint migrate seed bootstrap e2e engine-fake audit ci ci-be ci-fe typecheck-be test-integration
 
 up:        ; $(COMPOSE) up --build
 down:      ; $(COMPOSE) down
@@ -12,6 +12,8 @@ build:     ; $(COMPOSE) build
 test: test-be test-fe
 test-be:   ; $(COMPOSE) run --rm backend pytest
 test-fe:   ; $(COMPOSE) run --rm frontend npm test
+# integration tests need the stack up (postgres/redis/minio); deselected from the default run
+test-integration: ; $(COMPOSE) run --rm backend pytest -m integration
 
 # Enforced gate: ruff + black + eslint + tsc. (mypy is advisory — `make typecheck-be`.)
 lint:
