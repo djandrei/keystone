@@ -6,6 +6,8 @@ export type AnalysisStatus = "queued" | "running" | "succeeded" | "failed" | "ca
 export interface BinaryRow {
   id: number;
   team_id: number;
+  project_id: number;
+  project_name: string | null;
   sha256: string;
   filename: string;
   size: number;
@@ -93,15 +95,38 @@ export interface StreamEvent {
   data?: Record<string, unknown> | null;
 }
 
+export interface ProjectRow {
+  id: number;
+  team_id: number;
+  name: string;
+  is_default: boolean;
+  binary_count: number;
+  created_by: number | null;
+  created_at: string | null;
+}
+
 export const binariesApi = {
   list: (teamId?: number) =>
     api.get<BinaryRow[]>("/binaries", { params: teamId ? { team_id: teamId } : {} }).then((r) => r.data),
-  upload: (teamId: number, file: File) => {
+  upload: (teamId: number, file: File, projectId?: number) => {
     const fd = new FormData();
     fd.append("team_id", String(teamId));
     fd.append("file", file);
+    if (projectId != null) fd.append("project_id", String(projectId));
     return api.post<BinaryRow>("/binaries", fd).then((r) => r.data);
   },
+  move: (binaryId: number, projectId: number) =>
+    api.patch<BinaryRow>(`/binaries/${binaryId}`, { project_id: projectId }).then((r) => r.data),
+};
+
+export const projectsApi = {
+  list: (teamId: number) =>
+    api.get<ProjectRow[]>("/projects", { params: { team_id: teamId } }).then((r) => r.data),
+  create: (teamId: number, name: string) =>
+    api.post<ProjectRow>("/projects", { team_id: teamId, name }).then((r) => r.data),
+  rename: (id: number, name: string) =>
+    api.patch<ProjectRow>(`/projects/${id}`, { name }).then((r) => r.data),
+  remove: (id: number) => api.delete(`/projects/${id}`).then((r) => r.data),
 };
 
 export const analysesApi = {

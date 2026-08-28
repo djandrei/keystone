@@ -16,10 +16,14 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 const BINARY = {
-  id: 1, team_id: 1, sha256: "a".repeat(64), filename: "ls", size: 16120,
-  format: "ELF", arch: "x86-64", platform: "linux", ghidra_program_name: "ls",
-  uploaded_by: 1, created_at: null,
+  id: 1, team_id: 1, project_id: 9, project_name: "Unassigned", sha256: "a".repeat(64),
+  filename: "ls", size: 16120, format: "ELF", arch: "x86-64", platform: "linux",
+  ghidra_program_name: "ls", uploaded_by: 1, created_at: null,
 };
+
+const PROJECTS = [
+  { id: 9, team_id: 1, name: "Unassigned", is_default: true, binary_count: 1, created_by: 1, created_at: null },
+];
 
 it("uploads a binary as multipart FormData (team_id + file)", async () => {
   // axios+FormData+MSW hangs in jsdom, so assert the request the client builds.
@@ -34,21 +38,7 @@ it("uploads a binary as multipart FormData (team_id + file)", async () => {
   post.mockRestore();
 });
 
-it("lists binaries and starts an RE analysis from Run RE", async () => {
-  setAccess("access-1");
-  let started: { binaryId: number } | null = null;
-  server.use(
-    http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
-    http.get("/api/binaries", () => HttpResponse.json([BINARY])),
-    http.post("/api/binaries/1/analyses", () => {
-      started = { binaryId: 1 };
-      return HttpResponse.json({
-        id: 77, team_id: 1, binary_id: 1, mode: "re", status: "queued", model: "m",
-        params: null, created_by: 1, created_at: null, started_at: null, finished_at: null,
-        error: null, progress: null,
-      }, { status: 201 });
-    }),
-  );
+function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <ToastProvider>
@@ -62,6 +52,25 @@ it("lists binaries and starts an RE analysis from Run RE", async () => {
       </QueryClientProvider>
     </ToastProvider>,
   );
+}
+
+it("lists binaries and starts an RE analysis from Run RE", async () => {
+  setAccess("access-1");
+  let started: { binaryId: number } | null = null;
+  server.use(
+    http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
+    http.get("/api/projects", () => HttpResponse.json(PROJECTS)),
+    http.get("/api/binaries", () => HttpResponse.json([BINARY])),
+    http.post("/api/binaries/1/analyses", () => {
+      started = { binaryId: 1 };
+      return HttpResponse.json({
+        id: 77, team_id: 1, binary_id: 1, mode: "re", status: "queued", model: "m",
+        params: null, created_by: 1, created_at: null, started_at: null, finished_at: null,
+        error: null, progress: null,
+      }, { status: 201 });
+    }),
+  );
+  renderPage();
   // the seeded binary is listed, with its human-readable size
   expect(await screen.findByRole("cell", { name: "ls" })).toBeInTheDocument();
   expect(screen.getByRole("cell", { name: "15.7 KB" })).toBeInTheDocument();
@@ -69,4 +78,44 @@ it("lists binaries and starts an RE analysis from Run RE", async () => {
   // starts the analysis and navigates to its view
   await waitFor(() => expect(started).toEqual({ binaryId: 1 }));
   expect(await screen.findByText("analysis view 77")).toBeInTheDocument();
+});
+
+it("groups binaries into per-project sections", async () => {
+  setAccess("access-1");
+  server.use(
+    http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
+    http.get("/api/projects", () => HttpResponse.json([
+      { id: 5, team_id: 1, name: "firmware-x", is_default: false, binary_count: 1, created_by: 1, created_at: null },
+      { id: 9, team_id: 1, name: "Unassigned", is_default: true, binary_count: 1, created_by: 1, created_at: null },
+    ])),
+    http.get("/api/binaries", () => HttpResponse.json([
+      { ...BINARY, id: 1, filename: "fw.bin", project_id: 5, project_name: "firmware-x" },
+      { ...BINARY, id: 2, filename: "ls", project_id: 9, project_name: "Unassigned" },
+    ])),
+  );
+  renderPage();
+  // a section per project, each with its binary
+  expect(await screen.findByRole("button", { name: /toggle firmware-x/i })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /toggle unassigned/i })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "fw.bin" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "ls" })).toBeInTheDocument();
+});
+
+it("creates a project", async () => {
+  setAccess("access-1");
+  let created: unknown = null;
+  server.use(
+    http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
+    http.get("/api/projects", () => HttpResponse.json(PROJECTS)),
+    http.get("/api/binaries", () => HttpResponse.json([])),
+    http.post("/api/projects", async ({ request }) => {
+      created = await request.json();
+      return HttpResponse.json({ id: 5, team_id: 1, name: "firmware-x", is_default: false, binary_count: 0, created_by: 1, created_at: null }, { status: 201 });
+    }),
+  );
+  renderPage();
+  const input = await screen.findByLabelText("New project");
+  await userEvent.type(input, "firmware-x");
+  await userEvent.click(screen.getByRole("button", { name: /create/i }));
+  await waitFor(() => expect(created).toMatchObject({ team_id: 1, name: "firmware-x" }));
 });
