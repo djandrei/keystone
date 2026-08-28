@@ -5,7 +5,16 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from .config import get_settings
-from .models import Role, SystemSettings, Team, TeamMember, TeamRole, User
+from .models import (
+    DEFAULT_PROJECT_NAME,
+    Project,
+    Role,
+    SystemSettings,
+    Team,
+    TeamMember,
+    TeamRole,
+    User,
+)
 from .security import hash_password
 
 
@@ -27,12 +36,28 @@ def update_settings(session: Session, **fields: object) -> SystemSettings:
     return row
 
 
+def get_or_create_default_project(
+    session: Session, team_id: int, created_by: int | None = None
+) -> Project:
+    """The team's non-deletable 'Unassigned' bucket — the home for binaries with no
+    explicit project. Idempotent."""
+    proj = session.query(Project).filter_by(team_id=team_id, is_default=True).first()
+    if proj is None:
+        proj = Project(
+            team_id=team_id, name=DEFAULT_PROJECT_NAME, is_default=True, created_by=created_by
+        )
+        session.add(proj)
+        session.flush()
+    return proj
+
+
 def ensure_team(session: Session, name: str, created_by: int | None = None) -> Team:
     team = session.query(Team).filter_by(name=name).first()
     if team is None:
         team = Team(name=name, created_by=created_by)
         session.add(team)
         session.flush()
+    get_or_create_default_project(session, team.id, created_by)
     return team
 
 

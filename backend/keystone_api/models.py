@@ -19,13 +19,14 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     func,
 )
 from sqlalchemy import (
     Enum as SAEnum,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 from sqlalchemy.types import JSON
 
 from .db import Base
@@ -129,14 +130,39 @@ class TeamMember(Base):
 
 
 # --------------------------------------------------------------------------- #
-# Work: binaries, analyses, results
+# Work: projects, binaries, analyses, results
 # --------------------------------------------------------------------------- #
+DEFAULT_PROJECT_NAME = "Unassigned"
+
+
+class Project(Base):
+    """A named bucket that groups binaries within a team. Every team has exactly
+    one `is_default` project ("Unassigned"); binaries with no explicit project land
+    there. Project names are unique within a team."""
+
+    __tablename__ = "projects"
+    __table_args__ = (UniqueConstraint("team_id", "name", name="uq_project_team_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="RESTRICT"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = _ts()
+
+
 class Binary(Base):
     __tablename__ = "binaries"
     __table_args__ = (UniqueConstraint("team_id", "sha256", name="uq_binary_team_sha"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    # NOT NULL; auto-filled to the team's default project by the before_flush hook
+    # below when not set explicitly. Same-team consistency is enforced in the API.
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    project: Mapped[Project] = relationship()
     sha256: Mapped[str] = mapped_column(String(64), index=True)
     filename: Mapped[str] = mapped_column(String(255), index=True)
     size: Mapped[int] = mapped_column(Integer)
@@ -288,3 +314,34 @@ class AuditLog(Base):
     target_id: Mapped[str | None] = mapped_column(String(64))
     detail: Mapped[dict | None] = mapped_column(JsonB)
     created_at: Mapped[datetime] = _ts()
+
+
+@event.listens_for(Session, "before_flush")
+def _assign_default_project(session: Session, flush_context, instances) -> None:  # type: ignore[no-untyped-def]
+    """Any new Binary without an explicit project lands in its team's default
+    ("Unassigned") project — created on demand. Keeps binaries.project_id NOT NULL
+    without every caller having to pick a project."""
+    pending = [
+        o
+        for o in session.new
+        if isinstance(o, Binary) and o.project_id is None and o.project is None
+    ]
+    if not pending:
+        return
+    with session.no_autoflush:
+        by_team: dict[int, Project] = {}
+        for b in pending:
+            proj = by_team.get(b.team_id)
+            if proj is None:
+                proj = (
+                    session.query(Project)
+                    .filter_by(team_id=b.team_id, is_default=True)
+                    .first()
+                )
+                if proj is None:
+                    proj = Project(
+                        team_id=b.team_id, name=DEFAULT_PROJECT_NAME, is_default=True
+                    )
+                    session.add(proj)
+                by_team[b.team_id] = proj
+            b.project = proj
