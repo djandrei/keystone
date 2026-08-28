@@ -67,6 +67,9 @@ Secrets to change for production:
   Keystone never stores it in the database. The admin sets the LLM *endpoint URL*
   and *default model* at runtime under **Settings**; the key stays in the
   environment and the UI only shows whether one is configured.
+- `KEYSTONE_TRIAGE_API_KEY` — optional key for a separate, cheaper **triage**
+  model (the two-model cascade). Blank ⇒ triage reuses the analysis model/key.
+  See `docs/models.md`.
 
 ## Testing
 
