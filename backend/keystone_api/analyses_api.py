@@ -11,7 +11,16 @@ from .auth.deps import require_auth
 from .config import get_settings
 from .context import get_db
 from .export import report_json_bundle, text_to_pdf
-from .models import Analysis, AnalysisMode, AnalysisStatus, Binary, Report, Role, VRFinding
+from .models import (
+    Analysis,
+    AnalysisMode,
+    AnalysisStatus,
+    Binary,
+    Report,
+    REResult,
+    Role,
+    VRFinding,
+)
 from .rbac import can_access_team, require_role, scope_to_teams
 from .services import get_or_create_settings
 from .storage import ObjectStore, get_object_store
@@ -151,6 +160,71 @@ def start_analysis(binary_id: int):  # type: ignore[no-untyped-def]
 
 _SORT_COLUMNS = {"created_at": Analysis.created_at, "id": Analysis.id, "status": Analysis.status}
 
+_RISK_ORDER = {"critical": 5, "high": 4, "medium": 3, "low": 2, "informational": 1}
+
+
+def _vr_summary(findings: list[tuple]) -> dict:
+    """Reduce a VR analysis's (risk_level, cwe_id) rows to {count, top_risk,
+    top_cwe} where 'top' is the highest-severity finding."""
+
+    def sev(rc: tuple) -> int:
+        risk = rc[0]
+        return _RISK_ORDER.get(getattr(risk, "value", risk) or "", 0)
+
+    top = max(findings, key=sev) if findings else None
+    return {
+        "count": len(findings),
+        "top_risk": (getattr(top[0], "value", top[0]) if top else None),
+        "top_cwe": (top[1] if top else None),
+    }
+
+
+def _task_descriptions(db, items: list[Analysis]) -> dict[int, dict]:
+    """For a page of analyses, batch-load the per-row Task description data —
+    binary filename (always) + an outcome summary (succeeded only) — in three
+    IN-list queries, never per row."""
+    binary_ids = {a.binary_id for a in items}
+    filenames = (
+        dict(db.query(Binary.id, Binary.filename).filter(Binary.id.in_(binary_ids)))
+        if binary_ids
+        else {}
+    )
+
+    re_ids = [
+        a.id
+        for a in items
+        if a.mode is AnalysisMode.re and a.status is AnalysisStatus.succeeded
+    ]
+    purposes = (
+        dict(db.query(REResult.analysis_id, REResult.purpose).filter(REResult.analysis_id.in_(re_ids)))
+        if re_ids
+        else {}
+    )
+
+    vr_ids = [
+        a.id
+        for a in items
+        if a.mode is AnalysisMode.vr and a.status is AnalysisStatus.succeeded
+    ]
+    vr_by_analysis: dict[int, list[tuple]] = {aid: [] for aid in vr_ids}
+    if vr_ids:
+        rows = db.query(
+            VRFinding.analysis_id, VRFinding.risk_level, VRFinding.cwe_id
+        ).filter(VRFinding.analysis_id.in_(vr_ids))
+        for aid, risk, cwe in rows:
+            vr_by_analysis[aid].append((risk, cwe))
+
+    out: dict[int, dict] = {}
+    for a in items:
+        summary = None
+        if a.status is AnalysisStatus.succeeded:
+            if a.mode is AnalysisMode.re and a.id in purposes:
+                summary = {"kind": "re", "purpose": purposes[a.id]}
+            elif a.mode is AnalysisMode.vr:
+                summary = {"kind": "vr", **_vr_summary(vr_by_analysis.get(a.id, []))}
+        out[a.id] = {"binary_filename": filenames.get(a.binary_id), "summary": summary}
+    return out
+
 
 @analyses_bp.get("/analyses")
 @require_auth
@@ -207,9 +281,10 @@ def list_analyses():  # type: ignore[no-untyped-def]
     usernames = (
         {u.id: u.username for u in db.query(User).filter(User.id.in_(ids)).all()} if ids else {}
     )
+    tasks = _task_descriptions(db, items)
 
     return jsonify(
-        items=[_public(a, usernames=usernames) for a in items],
+        items=[{**_public(a, usernames=usernames), **tasks[a.id]} for a in items],
         total=total,
         limit=limit,
         offset=offset,
