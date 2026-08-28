@@ -28,7 +28,11 @@ export function AnalysisPage() {
 
   const active = analysis ? ACTIVE.has(analysis.status) : false;
   const isVr = analysis?.mode === "vr";
-  const { events } = useAnalysisStream(analysisId, active, analysis?.progress?.events ?? []);
+  const { events, status: streamStatus } = useAnalysisStream(
+    analysisId,
+    active,
+    analysis?.progress?.events ?? [],
+  );
 
   const { data: report } = useQuery({
     queryKey: ["report", analysisId],
@@ -94,6 +98,11 @@ export function AnalysisPage() {
           <CardTitle>Steps</CardTitle>
         </CardHeader>
         <CardContent>
+          {active && streamStatus === "closed" && (
+            <p role="status" className="mb-3 text-xs text-warn">
+              Live updates disconnected — the view still refreshes every few seconds.
+            </p>
+          )}
           <StepsPanel events={shownEvents} />
         </CardContent>
       </Card>
