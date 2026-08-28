@@ -13,9 +13,9 @@ from celery import Celery
 
 from keystone_api.config import get_settings
 from keystone_api.db import get_session, init_db
-from keystone_api.jobs import run_analysis_core
+from keystone_api.jobs import record_failure, run_analysis_core
 from keystone_api.llm_config import resolve_triage_target
-from keystone_api.models import Analysis, AnalysisMode, Binary
+from keystone_api.models import Analysis, AnalysisMode, AnalysisStatus, Binary
 from keystone_api.persist import persist_re_result, persist_vr_result
 from keystone_api.services import get_or_create_settings
 from keystone_api.storage import get_object_store
@@ -173,97 +173,36 @@ def _fake_vr_pipeline(analysis_id: int, params: dict, filename: str | None = Non
 
 @app.task(name="run_analysis")
 def run_analysis(analysis_id: int) -> str:
+    """Celery entrypoint. All engine setup happens inside `_run_analysis`; a
+    failure there (missing MCP key, client/LLM/triage init, Ghidra import) would
+    otherwise die as a silent task and leave the row stuck — the wrapper catches it
+    and marks the row failed with the reason, exactly like a pipeline failure."""
     init_db(settings.database_url)
     session = get_session()
     try:
-        analysis = session.get(Analysis, analysis_id)
-        if analysis is None:
-            return "failed"
-        binary = session.get(Binary, analysis.binary_id)
-        store = get_object_store()
+        return _run_analysis(analysis_id, session).value
+    except Exception as exc:  # noqa: BLE001 — engine-setup failure before the pipeline
+        return record_failure(session, analysis_id, exc, _publish).value
+    finally:
+        session.close()
 
-        # Fake engine (e2e / demo): no Ghidra, no LLM, no MCP key needed.
-        if settings.engine_fake:
-            if analysis.mode is AnalysisMode.vr:
-                pipeline = _fake_vr_pipeline(analysis_id, analysis.params or {}, binary.filename)
-                persist = lambda s, a, r: persist_vr_result(s, a, r, store=store)
-            else:
-                pipeline = _make_fake_re_pipeline(binary.filename)
-                persist = lambda s, a, r: persist_re_result(s, a, r, store=store)
-            status = run_analysis_core(
-                analysis_id,
-                session,
-                pipeline=pipeline,
-                persist=persist,
-                publish=_publish,
-                is_canceled=_is_canceled,
-            )
-            return status.value
 
-        # Real engine: the authenticated MCP server rejects unauthenticated calls.
-        if not settings.mcp_api_key:
-            raise RuntimeError(
-                "KEYSTONE_MCP_API_KEY is not set — the authenticated ghidra-headless-mcp "
-                "server rejects unauthenticated calls. Set it (matching the server's "
-                "GHMCP_API_KEY) before running real analyses."
-            )
-        client = GhidraMcpClient(base_url=settings.mcp_endpoint, api_key=settings.mcp_api_key)
+def _run_analysis(analysis_id: int, session) -> AnalysisStatus:  # type: ignore[no-untyped-def]
+    analysis = session.get(Analysis, analysis_id)
+    if analysis is None:
+        return AnalysisStatus.failed
+    binary = session.get(Binary, analysis.binary_id)
+    store = get_object_store()
 
-        sysset = get_or_create_settings(session)
-        if sysset.llm_endpoint_url and sysset.default_model:
-            configure_lm(
-                make_lm(sysset.llm_endpoint_url, sysset.default_model, settings.llm_api_key)
-            )
-
-        # Two-model cascade: bind a cheaper triage LM to the VR triage agent, if
-        # configured. Everything else runs on the global (analysis) LM.
-        triage_agent = None
-        triage_target = resolve_triage_target(sysset, settings)
-        if triage_target:
-            from keystone_engine.signatures.triage import make_triage_agent
-
-            triage_agent = make_triage_agent()
-            triage_agent.set_lm(make_lm(*triage_target))
-            logging.getLogger("keystone.worker").info(
-                "VR triage on separate model %s (analysis: %s)",
-                triage_target[1],
-                sysset.default_model,
-            )
-
-        sample_path = f"{settings.sample_dir}/{binary.sha256}_{binary.ghidra_program_name}"
-        ref = BinaryRef(
-            program=binary.ghidra_program_name, sha256=binary.sha256, filename=binary.filename
-        )
-
-        def pipeline(_a):  # type: ignore[no-untyped-def]
-            # import into Ghidra; use the ACTUAL created program name (the staged
-            # file is {sha}_{name}, so Ghidra names it that, not the bare name).
-            result = client.analyze_binary(sample_path)
-            ref.program = result.get("program") or ref.program
-            if _a.mode is AnalysisMode.vr:
-                from keystone_engine.pipelines import vr_path
-
-                params = _a.params or {}
-                resolver = None
-                if not params.get("rule") and params.get("interactive"):
-                    resolver = _make_rule_resolver(analysis_id)
-                return vr_path.run(
-                    ref,
-                    client,
-                    rule=params.get("rule"),
-                    rule_resolver=resolver,
-                    triage_agent=triage_agent,
-                    semgrep_config=settings.semgrep_config,
-                )
-            return re_path.run(ref, client)
-
-        def persist(s, a, result):  # type: ignore[no-untyped-def]
-            if a.mode is AnalysisMode.vr:
-                persist_vr_result(s, a, result, store=store)
-            else:
-                persist_re_result(s, a, result, store=store)
-
-        status = run_analysis_core(
+    # Fake engine (e2e / demo): no Ghidra, no LLM, no MCP key needed.
+    if settings.engine_fake:
+        if analysis.mode is AnalysisMode.vr:
+            pipeline = _fake_vr_pipeline(analysis_id, analysis.params or {}, binary.filename)
+            persist = lambda s, a, r: persist_vr_result(s, a, r, store=store)
+        else:
+            pipeline = _make_fake_re_pipeline(binary.filename)
+            persist = lambda s, a, r: persist_re_result(s, a, r, store=store)
+        return run_analysis_core(
             analysis_id,
             session,
             pipeline=pipeline,
@@ -271,6 +210,73 @@ def run_analysis(analysis_id: int) -> str:
             publish=_publish,
             is_canceled=_is_canceled,
         )
-        return status.value
-    finally:
-        session.close()
+
+    # Real engine: the authenticated MCP server rejects unauthenticated calls.
+    if not settings.mcp_api_key:
+        raise RuntimeError(
+            "KEYSTONE_MCP_API_KEY is not set — the authenticated ghidra-headless-mcp "
+            "server rejects unauthenticated calls. Set it (matching the server's "
+            "GHMCP_API_KEY) before running real analyses."
+        )
+    client = GhidraMcpClient(base_url=settings.mcp_endpoint, api_key=settings.mcp_api_key)
+
+    sysset = get_or_create_settings(session)
+    if sysset.llm_endpoint_url and sysset.default_model:
+        configure_lm(make_lm(sysset.llm_endpoint_url, sysset.default_model, settings.llm_api_key))
+
+    # Two-model cascade: bind a cheaper triage LM to the VR triage agent, if
+    # configured. Everything else runs on the global (analysis) LM.
+    triage_agent = None
+    triage_target = resolve_triage_target(sysset, settings)
+    if triage_target:
+        from keystone_engine.signatures.triage import make_triage_agent
+
+        triage_agent = make_triage_agent()
+        triage_agent.set_lm(make_lm(*triage_target))
+        logging.getLogger("keystone.worker").info(
+            "VR triage on separate model %s (analysis: %s)",
+            triage_target[1],
+            sysset.default_model,
+        )
+
+    sample_path = f"{settings.sample_dir}/{binary.sha256}_{binary.ghidra_program_name}"
+    ref = BinaryRef(
+        program=binary.ghidra_program_name, sha256=binary.sha256, filename=binary.filename
+    )
+
+    def pipeline(_a):  # type: ignore[no-untyped-def]
+        # import into Ghidra; use the ACTUAL created program name (the staged
+        # file is {sha}_{name}, so Ghidra names it that, not the bare name).
+        result = client.analyze_binary(sample_path)
+        ref.program = result.get("program") or ref.program
+        if _a.mode is AnalysisMode.vr:
+            from keystone_engine.pipelines import vr_path
+
+            params = _a.params or {}
+            resolver = None
+            if not params.get("rule") and params.get("interactive"):
+                resolver = _make_rule_resolver(analysis_id)
+            return vr_path.run(
+                ref,
+                client,
+                rule=params.get("rule"),
+                rule_resolver=resolver,
+                triage_agent=triage_agent,
+                semgrep_config=settings.semgrep_config,
+            )
+        return re_path.run(ref, client)
+
+    def persist(s, a, result):  # type: ignore[no-untyped-def]
+        if a.mode is AnalysisMode.vr:
+            persist_vr_result(s, a, result, store=store)
+        else:
+            persist_re_result(s, a, result, store=store)
+
+    return run_analysis_core(
+        analysis_id,
+        session,
+        pipeline=pipeline,
+        persist=persist,
+        publish=_publish,
+        is_canceled=_is_canceled,
+    )

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from keystone_api import services
-from keystone_api.jobs import run_analysis_core
+from keystone_api.jobs import record_failure, run_analysis_core
 from keystone_api.models import Analysis, AnalysisMode, AnalysisStatus, Binary, Team, User
 from keystone_engine.events import ProgressEvent
 
@@ -80,17 +80,56 @@ def test_cancel_aborts_between_steps(session):
     assert published[-1]["type"] == "canceled"
 
 
-def test_failure_records_error(session):
+def test_failure_records_error_and_logs_traceback(session, caplog):
     a = _make_analysis(session)
+    published: list[dict] = []
 
     def pipeline(_a):
         yield ProgressEvent.step_start("overview", 1)
         raise RuntimeError("ghidra exploded")
 
-    status = run_analysis_core(a.id, session, pipeline=pipeline, persist=lambda *x: None)
+    with caplog.at_level("ERROR", logger="keystone.jobs"):
+        status = run_analysis_core(
+            a.id, session, pipeline=pipeline, persist=lambda *x: None,
+            publish=lambda i, e: published.append(e),
+        )
     assert status is AnalysisStatus.failed
     session.refresh(a)
     assert a.status is AnalysisStatus.failed and "ghidra exploded" in a.error
+    assert published[-1] == {"type": "error", "message": "ghidra exploded"}
+    # the full traceback survives server-side (not just str(exc) on the row)
+    rec = next(r for r in caplog.records if r.name == "keystone.jobs")
+    assert rec.exc_info is not None and "ghidra exploded" in caplog.text
+
+
+def test_record_failure_direct_marks_and_publishes(session):
+    a = _make_analysis(session)
+    published: list[dict] = []
+    status = record_failure(
+        session, a.id, RuntimeError("setup boom"), lambda i, e: published.append(e)
+    )
+    assert status is AnalysisStatus.failed
+    session.refresh(a)
+    assert a.status is AnalysisStatus.failed and a.error == "setup boom" and a.finished_at
+    assert published == [{"type": "error", "message": "setup boom"}]
+
+
+def test_record_failure_missing_row_is_safe(session):
+    # a setup failure before the row is even loadable must not throw
+    assert record_failure(session, 4242, RuntimeError("x")) is AnalysisStatus.failed
+
+
+def test_record_failure_survives_dead_publish(session):
+    # the DB row is the source of truth: a Redis publish that raises is swallowed
+    a = _make_analysis(session)
+
+    def dead_publish(_i, _e):
+        raise ConnectionError("redis down")
+
+    status = record_failure(session, a.id, RuntimeError("boom"), dead_publish)
+    assert status is AnalysisStatus.failed
+    session.refresh(a)
+    assert a.status is AnalysisStatus.failed and a.error == "boom"
 
 
 def test_missing_analysis_returns_failed(session):

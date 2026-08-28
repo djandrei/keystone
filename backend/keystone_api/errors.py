@@ -31,8 +31,10 @@ def http_error_slug(exc: HTTPException) -> str:
     return (exc.name or "http_error").strip().lower().replace(" ", "_")
 
 
-def _capture(exc: BaseException) -> None:
-    """Best-effort Sentry capture; a no-op if the SDK is absent or unconfigured."""
+def capture_exception(exc: BaseException) -> None:
+    """Best-effort Sentry capture; a no-op if the SDK is absent or unconfigured.
+    Shared by the HTTP 500 handler and the analysis-job failure recorder, so both
+    paths report to Sentry identically once a DSN is set."""
     try:
         import sentry_sdk
 
@@ -56,5 +58,5 @@ def register_error_handlers(app) -> None:  # type: ignore[no-untyped-def]
         if app.testing or app.debug:
             raise exc
         log.exception("unhandled_exception", extra={"path": request.path})
-        _capture(exc)
+        capture_exception(exc)
         return jsonify(error="internal_error"), 500
