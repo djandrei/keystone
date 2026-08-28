@@ -104,3 +104,34 @@ def test_move_to_foreign_project_rejected(app, client, session):
     bid = _upload(client, tok, team.id, "e.elf", ELF).get_json()["id"]
     r = client.patch(f"/binaries/{bid}", headers=_h(tok), json={"project_id": foreign.id})
     assert r.status_code == 400 and r.get_json()["error"] == "invalid_project"
+
+
+def test_move_not_found(app, client, session):
+    _team(app, session)
+    r = client.patch("/binaries/99999", headers=_h(_tok(client)), json={"project_id": 1})
+    assert r.status_code == 404
+
+
+def test_move_invalid_request(app, client, session):
+    team = _team(app, session)
+    tok = _tok(client)
+    bid = _upload(client, tok, team.id, "m.elf", ELF).get_json()["id"]
+    # missing project_id -> validation error
+    assert client.patch(f"/binaries/{bid}", headers=_h(tok), json={}).status_code == 400
+
+
+def test_move_forbidden_for_non_member(app, client, session):
+    from keystone_api.models import Role, TeamMember, TeamRole, User
+    from keystone_api.security import hash_password
+
+    team = _team(app, session)
+    tok = _tok(client)
+    bid = _upload(client, tok, team.id, "f.elf", ELF).get_json()["id"]
+    other = Team(name="Other2")
+    ana = User(username="ana2", email="a2@x", password_hash=hash_password("pw123456"), role=Role.analyst)
+    session.add_all([other, ana])
+    session.flush()
+    session.add(TeamMember(team_id=other.id, user_id=ana.id, team_role=TeamRole.member))
+    session.commit()
+    r = client.patch(f"/binaries/{bid}", headers=_h(_tok(client, "ana2", "pw123456")), json={"project_id": 1})
+    assert r.status_code == 403

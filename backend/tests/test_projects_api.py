@@ -97,3 +97,48 @@ def test_non_member_forbidden(app, client, session):
     # analyst in Other can't create a project in Default
     r = client.post("/projects", headers=_h(tok), json={"team_id": default_team.id, "name": "x"})
     assert r.status_code == 403
+
+
+def test_create_unassigned_name_collides(app, client, session):
+    team = _team(session)
+    tok = _tok(client)
+    r = client.post("/projects", headers=_h(tok), json={"team_id": team.id, "name": "Unassigned"})
+    assert r.status_code == 409 and r.get_json()["error"] == "name_taken"
+
+
+def test_rename_and_delete_not_found(app, client, session):
+    _team(session)
+    tok = _tok(client)
+    assert client.patch("/projects/99999", headers=_h(tok), json={"name": "x"}).status_code == 404
+    assert client.delete("/projects/99999", headers=_h(tok)).status_code == 404
+
+
+def test_rename_invalid_request(app, client, session):
+    team = _team(session)
+    tok = _tok(client)
+    pid = client.post("/projects", headers=_h(tok), json={"team_id": team.id, "name": "p"}).get_json()["id"]
+    assert client.patch(f"/projects/{pid}", headers=_h(tok), json={"name": ""}).status_code == 400
+
+
+def test_rename_to_duplicate_name(app, client, session):
+    team = _team(session)
+    tok = _tok(client)
+    client.post("/projects", headers=_h(tok), json={"team_id": team.id, "name": "a"})
+    pid = client.post("/projects", headers=_h(tok), json={"team_id": team.id, "name": "b"}).get_json()["id"]
+    r = client.patch(f"/projects/{pid}", headers=_h(tok), json={"name": "a"})
+    assert r.status_code == 409 and r.get_json()["error"] == "name_taken"
+
+
+def test_rename_delete_forbidden_for_non_member(app, client, session):
+    services.bootstrap(session)
+    default_team = session.query(Team).filter_by(name="Default").one()
+    proj = Project(team_id=default_team.id, name="secret")
+    other = Team(name="Other")
+    ana = User(username="ana", email="a@x", password_hash=hash_password("pw123456"), role=Role.analyst)
+    session.add_all([proj, other, ana])
+    session.flush()
+    session.add(TeamMember(team_id=other.id, user_id=ana.id, team_role=TeamRole.member))
+    session.commit()
+    tok = _tok(client, "ana", "pw123456")
+    assert client.patch(f"/projects/{proj.id}", headers=_h(tok), json={"name": "x"}).status_code == 403
+    assert client.delete(f"/projects/{proj.id}", headers=_h(tok)).status_code == 403
