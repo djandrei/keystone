@@ -14,6 +14,7 @@ from .auth.deps import require_auth
 from .context import get_db
 from .models import Role, Team, TeamMember, TeamRole, User
 from .rbac import can_access_team, is_team_lead, require_role
+from .services import get_or_create_default_project
 
 teams_bp = Blueprint("teams", __name__, url_prefix="/teams")
 
@@ -69,6 +70,7 @@ def create_team():  # type: ignore[no-untyped-def]
     team = Team(name=body.name, created_by=g.principal.user.id)
     db.add(team)
     db.flush()
+    get_or_create_default_project(db, team.id, g.principal.user.id)
     audit(db, g.principal, "team.create", "team", team.id, {"name": team.name})
     db.commit()
     return jsonify(_team_public(team)), 201
