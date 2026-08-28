@@ -17,6 +17,9 @@ export function SettingsPage() {
 
   const [endpoint, setEndpoint] = useState("");
   const [model, setModel] = useState("");
+  const [triageModel, setTriageModel] = useState("");
+  const [triageEndpoint, setTriageEndpoint] = useState("");
+  const [triageProbe, setTriageProbe] = useState<TestConnectionResult | null>(null);
   const [semgrep, setSemgrep] = useState("");
   const [semgrepError, setSemgrepError] = useState<string | null>(null);
   const [probe, setProbe] = useState<TestConnectionResult | null>(null);
@@ -25,6 +28,8 @@ export function SettingsPage() {
     if (data) {
       setEndpoint(data.llm_endpoint_url ?? "");
       setModel(data.default_model ?? "");
+      setTriageModel(data.triage_model ?? "");
+      setTriageEndpoint(data.triage_endpoint_url ?? "");
       setSemgrep(data.semgrep_config ? JSON.stringify(data.semgrep_config, null, 2) : "");
     }
   }, [data]);
@@ -36,6 +41,8 @@ export function SettingsPage() {
       return settingsApi.update({
         llm_endpoint_url: endpoint || null,
         default_model: model || null,
+        triage_model: triageModel || null,
+        triage_endpoint_url: triageEndpoint || null,
         semgrep_config,
       });
     },
@@ -50,6 +57,12 @@ export function SettingsPage() {
     mutationFn: () => settingsApi.testConnection(endpoint || undefined),
     onSuccess: (res) => setProbe(res),
     onError: () => setProbe({ ok: false, error: "request_failed" }),
+  });
+
+  const testTriage = useMutation({
+    mutationFn: () => settingsApi.testConnection(triageEndpoint || undefined, "triage"),
+    onSuccess: (res) => setTriageProbe(res),
+    onError: () => setTriageProbe({ ok: false, error: "request_failed" }),
   });
 
   function onSave(e: React.FormEvent) {
@@ -111,6 +124,71 @@ export function SettingsPage() {
                 <Badge variant="good">configured</Badge>
               ) : (
                 <Badge variant="warn">not set</Badge>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-lg border border-border bg-panel-2/40 p-4">
+              <div>
+                <p className="text-sm font-semibold text-fg">Triage model (optional)</p>
+                <p className="text-xs text-fg-muted">
+                  A cheaper model for the high-volume VR triage step. Leave blank to reuse the
+                  analysis model (endpoint and key fall back to the analysis ones too).
+                </p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="s-triage-model">Triage model</Label>
+                <Input
+                  id="s-triage-model"
+                  value={triageModel}
+                  placeholder="(reuse default model)"
+                  onChange={(e) => setTriageModel(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="s-triage-endpoint">Triage endpoint URL (optional)</Label>
+                <Input
+                  id="s-triage-endpoint"
+                  value={triageEndpoint}
+                  placeholder="(reuse analysis endpoint)"
+                  onChange={(e) => setTriageEndpoint(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-fg-muted">Triage key:</span>
+                {data?.triage_key_configured ? (
+                  <Badge variant="good">available</Badge>
+                ) : (
+                  <Badge variant="warn">not set</Badge>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={testTriage.isPending}
+                  onClick={() => testTriage.mutate()}
+                >
+                  {testTriage.isPending ? "Testing…" : "Test triage connection"}
+                </Button>
+              </div>
+              {triageProbe && (
+                <div
+                  role="status"
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                    triageProbe.ok ? "bg-good/10 text-good" : "bg-critical/10 text-critical"
+                  }`}
+                >
+                  {triageProbe.ok ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      Connected{triageProbe.models?.length ? ` — ${triageProbe.models.length} models` : ""}
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="h-4 w-4" />
+                      Failed: {triageProbe.error}
+                    </>
+                  )}
+                </div>
               )}
             </div>
 

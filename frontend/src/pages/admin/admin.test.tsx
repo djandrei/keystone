@@ -110,6 +110,7 @@ describe("SettingsPage", () => {
           updated_by: null,
           updated_at: null,
           llm_key_configured: true,
+          triage_key_configured: true,
         }),
       ),
       http.put("/api/settings", async ({ request }) => {
@@ -137,12 +138,43 @@ describe("SettingsPage", () => {
           updated_by: 1,
           updated_at: null,
           llm_key_configured: true,
+          triage_key_configured: true,
         }),
       ),
       http.post("/api/settings/test-connection", () => HttpResponse.json({ ok: true, models: ["m1", "m2"] })),
     );
     renderPage(<SettingsPage />);
-    await userEvent.click(await screen.findByRole("button", { name: /test connection/i }));
+    await userEvent.click(await screen.findByRole("button", { name: "Test connection" }));
     expect(await screen.findByRole("status")).toHaveTextContent(/connected — 2 models/i);
+  });
+
+  it("configures a triage model and tests it against the triage endpoint", async () => {
+    let saved: Record<string, unknown> | null = null;
+    let probedTarget: string | null = null;
+    server.use(
+      http.get("/api/settings", () =>
+        HttpResponse.json({
+          llm_endpoint_url: "https://main/api", default_model: "Big",
+          triage_model: null, triage_endpoint_url: null,
+          semgrep_config: null, updated_by: 1, updated_at: null,
+          llm_key_configured: true, triage_key_configured: true,
+        }),
+      ),
+      http.put("/api/settings", async ({ request }) => {
+        saved = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...saved, updated_by: 1, updated_at: null, llm_key_configured: true, triage_key_configured: true });
+      }),
+      http.post("/api/settings/test-connection", async ({ request }) => {
+        probedTarget = ((await request.json()) as { target?: string }).target ?? null;
+        return HttpResponse.json({ ok: true, models: ["Small"] });
+      }),
+    );
+    renderPage(<SettingsPage />);
+    await userEvent.type(await screen.findByLabelText(/^triage model$/i), "Small");
+    await userEvent.click(screen.getByRole("button", { name: /save settings/i }));
+    await waitFor(() => expect(saved).toMatchObject({ triage_model: "Small" }));
+
+    await userEvent.click(screen.getByRole("button", { name: /test triage connection/i }));
+    await waitFor(() => expect(probedTarget).toBe("triage"));
   });
 });

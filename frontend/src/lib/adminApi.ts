@@ -32,10 +32,13 @@ export interface TeamDetail extends Team {
 export interface SystemSettings {
   llm_endpoint_url: string | null;
   default_model: string | null;
+  triage_model: string | null;
+  triage_endpoint_url: string | null;
   semgrep_config: Record<string, unknown> | null;
   updated_by: number | null;
   updated_at: string | null;
   llm_key_configured: boolean;
+  triage_key_configured: boolean;
 }
 export interface TestConnectionResult {
   ok: boolean;
@@ -64,10 +67,16 @@ export const teamsApi = {
 
 export const settingsApi = {
   get: () => api.get<SystemSettings>("/settings").then((r) => r.data),
-  update: (body: Partial<Pick<SystemSettings, "llm_endpoint_url" | "default_model" | "semgrep_config">>) =>
+  update: (
+    body: Partial<
+      Pick<SystemSettings, "llm_endpoint_url" | "default_model" | "triage_model" | "triage_endpoint_url" | "semgrep_config">
+    >,
+  ) =>
     api.put<SystemSettings>("/settings", body).then((r) => r.data),
-  testConnection: (llm_endpoint_url?: string) =>
-    api.post<TestConnectionResult>("/settings/test-connection", { llm_endpoint_url }).then((r) => r.data),
+  testConnection: (llm_endpoint_url?: string, target: "analysis" | "triage" = "analysis") =>
+    api
+      .post<TestConnectionResult>("/settings/test-connection", { llm_endpoint_url, target })
+      .then((r) => r.data),
 };
 
 
