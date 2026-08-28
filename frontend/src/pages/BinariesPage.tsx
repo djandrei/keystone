@@ -3,6 +3,7 @@ import { isAxiosError } from "axios";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { binariesApi, analysesApi } from "@/lib/analysisApi";
+import { formatBytes } from "@/lib/formatBytes";
 import { teamsApi } from "@/lib/adminApi";
 import { useTeam } from "@/team/TeamContext";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,7 @@ export function BinariesPage() {
               <TH>Format</TH>
               <TH>Arch</TH>
               <TH>Platform</TH>
+              <TH className="text-right">Size</TH>
               <TH className="text-right">Action</TH>
             </TR>
           </THead>
@@ -102,6 +104,7 @@ export function BinariesPage() {
                 <TD>{b.format && <Badge>{b.format}</Badge>}</TD>
                 <TD className="text-fg-muted">{b.arch ?? "—"}</TD>
                 <TD className="text-fg-muted">{b.platform ?? "—"}</TD>
+                <TD className="text-right text-fg-muted tabular-nums">{formatBytes(b.size)}</TD>
                 <TD>
                   <div className="flex justify-end gap-2">
                     <Button size="sm" disabled={start.isPending} onClick={() => start.mutate({ binaryId: b.id, mode: "re" })}>
@@ -116,7 +119,7 @@ export function BinariesPage() {
             ))}
             {binaries?.length === 0 && (
               <TR>
-                <TD colSpan={5} className="text-center text-fg-muted">
+                <TD colSpan={6} className="text-center text-fg-muted">
                   No binaries yet — upload one above.
                 </TD>
               </TR>

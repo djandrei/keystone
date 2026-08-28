@@ -16,7 +16,7 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 const BINARY = {
-  id: 1, team_id: 1, sha256: "a".repeat(64), filename: "ls", size: 10,
+  id: 1, team_id: 1, sha256: "a".repeat(64), filename: "ls", size: 16120,
   format: "ELF", arch: "x86-64", platform: "linux", ghidra_program_name: "ls",
   uploaded_by: 1, created_at: null,
 };
@@ -62,8 +62,9 @@ it("lists binaries and starts an RE analysis from Run RE", async () => {
       </QueryClientProvider>
     </ToastProvider>,
   );
-  // the seeded binary is listed
+  // the seeded binary is listed, with its human-readable size
   expect(await screen.findByRole("cell", { name: "ls" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "15.7 KB" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: /run re/i }));
   // starts the analysis and navigates to its view
   await waitFor(() => expect(started).toEqual({ binaryId: 1 }));
