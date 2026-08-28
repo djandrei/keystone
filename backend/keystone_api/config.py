@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     # the DB. Must equal the server's GHMCP_API_KEY (compose feeds both from one var).
     mcp_api_key: str = ""
 
+    # --- VR / semgrep ---
+    # Semgrep ruleset for decompiled code. A path (bundled rules), a registry
+    # config like "p/c", or "auto".
+    semgrep_config: str = "/app/semgrep-rules/decompiled-c.yaml"
+
     # --- observability (M5.1) ---
     sentry_dsn: str = ""
 

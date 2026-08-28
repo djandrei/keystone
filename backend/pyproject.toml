@@ -22,6 +22,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Real analysis engine extras (worker only; the API/tests don't need Semgrep).
+engine = [
+    "semgrep>=1.100",
+]
 # Added incrementally as milestones need them (DB, auth, jobs, storage).
 prod = [
     "gunicorn>=21.2",

@@ -111,6 +111,9 @@ if [ "$ENGINE" = 1 ] && [ "$REAL" = 1 ]; then
   fi
   echo "==> starting real engine: ghidra-mcp + worker (Ghidra + live LLM)"
   $COMPOSE --profile engine up -d ghidra-mcp worker
+  # VR needs Semgrep in the worker; install it if the image doesn't already have it
+  echo "==> ensuring Semgrep in the worker (for VR)"
+  $COMPOSE exec -T worker sh -c "command -v semgrep >/dev/null || pip install -q semgrep" || true
 elif [ "$ENGINE" = 1 ]; then
   echo "==> starting the analysis worker (fake engine — no Ghidra/LLM needed)"
   $COMPOSE_ENGINE --profile engine up -d worker

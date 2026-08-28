@@ -230,7 +230,13 @@ def run_analysis(analysis_id: int) -> str:
                 resolver = None
                 if not params.get("rule") and params.get("interactive"):
                     resolver = _make_rule_resolver(analysis_id)
-                return vr_path.run(ref, client, rule=params.get("rule"), rule_resolver=resolver)
+                return vr_path.run(
+                    ref,
+                    client,
+                    rule=params.get("rule"),
+                    rule_resolver=resolver,
+                    semgrep_config=settings.semgrep_config,
+                )
             return re_path.run(ref, client)
 
         def persist(s, a, result):  # type: ignore[no-untyped-def]

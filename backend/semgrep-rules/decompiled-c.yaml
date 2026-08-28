@@ -1,0 +1,54 @@
+# Vulnerability-research rules for Ghidra-decompiled C (Keystone VR default).
+# Decompiled code uses pseudo-types (byte/undefined8/local_X); these match calls,
+# which survive decompilation. For production, add the 0xdea semgrep-rules set.
+rules:
+  - id: hardcoded-credential-compare
+    languages: [c]
+    severity: WARNING
+    metadata: { cwe: "CWE-798" }
+    message: >
+      strcmp/memcmp against a locally-computed buffer — often a hardcoded
+      credential or weak authentication check that can be recovered statically.
+    patterns:
+      - pattern-either:
+          - pattern: strcmp(...)
+          - pattern: strncmp(...)
+          - pattern: memcmp(...)
+
+  - id: dangerous-copy
+    languages: [c]
+    severity: ERROR
+    metadata: { cwe: "CWE-120" }
+    message: >
+      Potentially unbounded copy/format into a fixed buffer — verify the length
+      is bounded by the destination size.
+    patterns:
+      - pattern-either:
+          - pattern: memcpy(...)
+          - pattern: strcpy(...)
+          - pattern: strcat(...)
+          - pattern: sprintf(...)
+          - pattern: gets(...)
+
+  - id: unbounded-input
+    languages: [c]
+    severity: WARNING
+    metadata: { cwe: "CWE-20" }
+    message: Reads attacker-controlled input without an explicit bound.
+    patterns:
+      - pattern-either:
+          - pattern: scanf(...)
+          - pattern: __isoc99_scanf(...)
+          - pattern: read(...)
+
+  - id: command-execution
+    languages: [c]
+    severity: ERROR
+    metadata: { cwe: "CWE-78" }
+    message: Executes a command/shell — check for attacker-controlled arguments.
+    patterns:
+      - pattern-either:
+          - pattern: system(...)
+          - pattern: popen(...)
+          - pattern: execve(...)
+          - pattern: execl(...)
