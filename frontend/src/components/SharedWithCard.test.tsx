@@ -3,9 +3,10 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-vi.mock("@/auth/AuthContext", () => ({
-  useCurrentUser: () => ({ id: 2, username: "trinity", email: "t@x", role: "analyst" }),
+const h = vi.hoisted(() => ({
+  user: { id: 2, username: "trinity", email: "t@x", role: "analyst" as string },
 }));
+vi.mock("@/auth/AuthContext", () => ({ useCurrentUser: () => h.user }));
 vi.mock("@/lib/adminApi", () => ({
   teamsApi: {
     get: vi.fn(async () => ({
@@ -42,8 +43,15 @@ describe("SharedWithCard", () => {
   });
 
   it("shows the read-only note for non-admins (no manage link)", async () => {
+    h.user = { id: 2, username: "trinity", email: "t@x", role: "analyst" };
     renderCard();
     expect(await screen.findByText(/team leads and admins manage/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /manage members/i })).not.toBeInTheDocument();
+  });
+
+  it("shows a Manage-members link for admins", async () => {
+    h.user = { id: 1, username: "root", email: "r@x", role: "admin" };
+    renderCard();
+    expect(await screen.findByRole("link", { name: /manage members/i })).toBeInTheDocument();
   });
 });

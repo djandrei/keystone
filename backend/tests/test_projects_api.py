@@ -142,3 +142,19 @@ def test_rename_delete_forbidden_for_non_member(app, client, session):
     tok = _tok(client, "ana", "pw123456")
     assert client.patch(f"/projects/{proj.id}", headers=_h(tok), json={"name": "x"}).status_code == 403
     assert client.delete(f"/projects/{proj.id}", headers=_h(tok)).status_code == 403
+
+
+def test_binary_count_and_ordering(app, client, session):
+    team = _team(session)
+    u = session.query(User).filter_by(username="admin").one()
+    tok = _tok(client)
+    client.post("/projects", headers=_h(tok), json={"team_id": team.id, "name": "zzz"})
+    pid = client.post("/projects", headers=_h(tok), json={"team_id": team.id, "name": "aaa"}).get_json()["id"]
+    session.add(Binary(team_id=team.id, project_id=pid, sha256="a" * 64, filename="x", size=10, storage_key="k", uploaded_by=u.id))
+    session.commit()
+    projs = client.get(f"/projects?team_id={team.id}", headers=_h(tok)).get_json()
+    names = [p["name"] for p in projs]
+    assert names[-1] == "Unassigned"  # default bucket last
+    assert names[:2] == ["aaa", "zzz"]  # non-default alphabetical
+    counts = {p["name"]: p["binary_count"] for p in projs}
+    assert counts["aaa"] == 1 and counts["Unassigned"] == 0

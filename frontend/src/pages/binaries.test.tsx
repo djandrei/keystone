@@ -38,6 +38,11 @@ const TEAM_DETAIL = {
   ],
 };
 
+const PROJECTS_TWO = [
+  { id: 5, team_id: 1, name: "firmware-x", is_default: false, binary_count: 0, created_by: 1, created_at: null },
+  { id: 9, team_id: 1, name: "Unassigned", is_default: true, binary_count: 0, created_by: 1, created_at: null },
+];
+
 it("uploads a binary as multipart FormData (team_id + file)", async () => {
   // axios+FormData+MSW hangs in jsdom, so assert the request the client builds.
   const post = vi.spyOn(api, "post").mockResolvedValue({ data: BINARY });
@@ -151,4 +156,54 @@ it("creates a project", async () => {
   await userEvent.type(input, "firmware-x");
   await userEvent.click(screen.getByRole("button", { name: /create/i }));
   await waitFor(() => expect(created).toMatchObject({ team_id: 1, name: "firmware-x" }));
+});
+
+it("deletes an empty project", async () => {
+  setAccess("access-1");
+  let deleted: string | null = null;
+  server.use(
+    http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
+    http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
+    http.get("/api/projects", () => HttpResponse.json(PROJECTS_TWO)),
+    http.get("/api/binaries", () => HttpResponse.json([])),
+    http.delete("/api/projects/5", () => { deleted = "5"; return new HttpResponse(null, { status: 204 }); }),
+  );
+  renderPage();
+  await userEvent.click(await screen.findByRole("button", { name: /delete firmware-x/i }));
+  await waitFor(() => expect(deleted).toBe("5"));
+});
+
+it("surfaces 'move them out first' when deleting a non-empty project", async () => {
+  setAccess("access-1");
+  server.use(
+    http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
+    http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
+    http.get("/api/projects", () => HttpResponse.json(PROJECTS_TWO)),
+    http.get("/api/binaries", () => HttpResponse.json([])),
+    http.delete("/api/projects/5", () => HttpResponse.json({ error: "has_binaries", binaries: 2 }, { status: 409 })),
+  );
+  renderPage();
+  await userEvent.click(await screen.findByRole("button", { name: /delete firmware-x/i }));
+  expect(await screen.findByText(/move them out first/i)).toBeInTheDocument();
+});
+
+it("renames a project", async () => {
+  setAccess("access-1");
+  let renamed: { name?: string } | null = null;
+  server.use(
+    http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
+    http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
+    http.get("/api/projects", () => HttpResponse.json(PROJECTS_TWO)),
+    http.get("/api/binaries", () => HttpResponse.json([])),
+    http.patch("/api/projects/5", async ({ request }) => {
+      renamed = (await request.json()) as { name?: string };
+      return HttpResponse.json({ id: 5, team_id: 1, name: "fw-y", is_default: false, binary_count: 0, created_by: 1, created_at: null });
+    }),
+  );
+  renderPage();
+  await userEvent.click(await screen.findByRole("button", { name: /rename firmware-x/i }));
+  const input = await screen.findByDisplayValue("firmware-x");
+  await userEvent.clear(input);
+  await userEvent.type(input, "fw-y{Enter}");
+  await waitFor(() => expect(renamed).toMatchObject({ name: "fw-y" }));
 });
