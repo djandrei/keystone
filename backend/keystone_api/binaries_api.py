@@ -12,12 +12,14 @@ import os
 import re
 
 from flask import Blueprint, current_app, g, jsonify, request
+from pydantic import BaseModel, ValidationError
+from sqlalchemy.orm import joinedload
 
 from .audit import audit
 from .auth.deps import require_auth
 from .config import get_settings
 from .context import get_db
-from .models import Binary, Role
+from .models import Binary, Project, Role
 from .ratelimit import rate_limit
 from .rbac import can_access_team, require_role, scope_to_teams
 from .sniff import sniff
@@ -36,10 +38,16 @@ def _sanitize_program_name(filename: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]", "_", base) or "binary"
 
 
+class MoveBinaryRequest(BaseModel):
+    project_id: int
+
+
 def _public(b: Binary) -> dict:
     return {
         "id": b.id,
         "team_id": b.team_id,
+        "project_id": b.project_id,
+        "project_name": b.project.name if b.project else None,
         "sha256": b.sha256,
         "filename": b.filename,
         "size": b.size,
@@ -88,6 +96,15 @@ def upload_binary():  # type: ignore[no-untyped-def]
     key = f"binaries/{sha256}"
 
     db = get_db()
+
+    # optional project bucket; must belong to the upload's team. Omitted -> the
+    # before_flush hook assigns the team's Unassigned default.
+    project_id = request.form.get("project_id", type=int)
+    if project_id is not None:
+        proj = db.get(Project, project_id)
+        if proj is None or proj.team_id != team_id:
+            return jsonify(error="invalid_project"), 400
+
     existing = db.query(Binary).filter_by(team_id=team_id, sha256=sha256).first()
     if existing:
         return jsonify(**_public(existing), deduplicated=True), 200
@@ -116,6 +133,7 @@ def upload_binary():  # type: ignore[no-untyped-def]
         ghidra_program_name=program_name,
         storage_key=key,
         uploaded_by=g.principal.user.id,
+        project_id=project_id,
     )
     db.add(row)
     db.flush()
@@ -130,7 +148,11 @@ def upload_binary():  # type: ignore[no-untyped-def]
 @require_auth
 def list_binaries():  # type: ignore[no-untyped-def]
     db = get_db()
-    q = scope_to_teams(db.query(Binary), Binary, g.principal).order_by(Binary.id.desc())
+    q = (
+        scope_to_teams(db.query(Binary), Binary, g.principal)
+        .options(joinedload(Binary.project))  # project_name without N+1
+        .order_by(Binary.id.desc())
+    )
     team_id = request.args.get("team_id", type=int)
     if team_id is not None:
         q = q.filter(Binary.team_id == team_id)
@@ -146,4 +168,27 @@ def get_binary(binary_id: int):  # type: ignore[no-untyped-def]
         return jsonify(error="not_found"), 404
     if not can_access_team(g.principal, b.team_id):
         return jsonify(error="forbidden"), 403
+    return jsonify(_public(b))
+
+
+@binaries_bp.patch("/<int:binary_id>")
+@require_role(Role.admin, Role.analyst)
+def move_binary(binary_id: int):  # type: ignore[no-untyped-def]
+    """Move a binary to another project in the same team."""
+    db = get_db()
+    b = db.get(Binary, binary_id)
+    if b is None:
+        return jsonify(error="not_found"), 404
+    if not can_access_team(g.principal, b.team_id):
+        return jsonify(error="forbidden"), 403
+    try:
+        body = MoveBinaryRequest.model_validate(request.get_json(silent=True) or {})
+    except ValidationError as e:
+        return jsonify(error="invalid_request", detail=e.errors()), 400
+    proj = db.get(Project, body.project_id)
+    if proj is None or proj.team_id != b.team_id:
+        return jsonify(error="invalid_project"), 400
+    b.project_id = proj.id
+    audit(db, g.principal, "binary.move", "binary", b.id, {"project_id": proj.id})
+    db.commit()
     return jsonify(_public(b))
