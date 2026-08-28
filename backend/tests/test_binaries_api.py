@@ -41,7 +41,12 @@ def _h(tok):
     return {"Authorization": f"Bearer {tok}"}
 
 
-ELF = b"\x7fELF" + b"\x02\x01\x01" + b"\x00" * 11 + struct.pack("<H", 0x3E) + b"\x00" * 40
+# Header + a body of zero fill so these clear the analyzability floor — a bare
+# header alone is exactly the stub the upload guard now rejects. e_phoff/e_shoff
+# are 0 (no declared tables) so the ELF truncation check has nothing to flag.
+ELF = (
+    b"\x7fELF" + b"\x02\x01\x01" + b"\x00" * 11 + struct.pack("<H", 0x3E) + b"\x00" * 40
+) + b"\x00" * 1024
 PE = (
     b"MZ"
     + b"\x00" * 58
@@ -49,7 +54,7 @@ PE = (
     + b"\x00" * (0x80 - 0x40)
     + b"PE\x00\x00"
     + struct.pack("<H", 0x8664)
-)
+) + b"\x00" * 1024
 
 
 def _upload(client, tok, team_id, name, data):
@@ -97,6 +102,23 @@ def test_pe_sniff(app, client, session):
     tok = _tok(client, "ana", "pw123456")
     body = _upload(client, tok, team.id, "x.exe", PE).get_json()
     assert body["format"] == "PE" and body["arch"] == "x86-64" and body["platform"] == "windows"
+
+
+def test_upload_rejects_bare_header_stub(app, client, session):
+    # a 64-byte ELF header with no body — passes the magic sniff, but Ghidra can't
+    # load it. The guard must reject it at upload and store nothing.
+    store = FakeStore()
+    app.config["OBJECT_STORE"] = store
+    _bootstrap(session)
+    ana, team = _mk_analyst(session)
+    tok = _tok(client, "ana", "pw123456")
+    stub = b"\x7fELF" + b"\x02\x01\x01" + b"\x00" * 11 + struct.pack("<H", 0x3E) + b"\x00" * 40
+    r = _upload(client, tok, team.id, "ls", stub)
+    assert r.status_code == 422
+    assert r.get_json()["error"] == "not_analyzable"
+    assert "too small" in r.get_json()["detail"]
+    assert store.objects == {}  # nothing stored
+    assert session.query(Binary).count() == 0  # no junk row
 
 
 def test_dedup_same_bytes_same_team(app, client, session):

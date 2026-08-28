@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isAxiosError } from "axios";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { binariesApi, analysesApi } from "@/lib/analysisApi";
@@ -31,7 +32,13 @@ export function BinariesPage() {
       qc.invalidateQueries({ queryKey: ["binaries"] });
       toast({ title: `Uploaded ${b.filename}`, description: `${b.format ?? "?"} · ${b.arch ?? "?"}`, variant: "success" });
     },
-    onError: () => toast({ title: "Upload failed", variant: "error" }),
+    onError: (err) => {
+      // surface the server's reason (e.g. the analyzability guard's message)
+      const detail = isAxiosError(err)
+        ? (err.response?.data as { detail?: string } | undefined)?.detail
+        : undefined;
+      toast({ title: "Upload failed", description: detail, variant: "error" });
+    },
   });
 
   const start = useMutation({

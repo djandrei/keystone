@@ -22,6 +22,7 @@ from .ratelimit import rate_limit
 from .rbac import can_access_team, require_role, scope_to_teams
 from .sniff import sniff
 from .storage import ObjectStore, get_object_store
+from .validate import check_analyzable
 
 binaries_bp = Blueprint("binaries", __name__, url_prefix="/binaries")
 
@@ -76,6 +77,14 @@ def upload_binary():  # type: ignore[no-untyped-def]
 
     sha256 = hashlib.sha256(data).hexdigest()
     info = sniff(data)
+
+    # reject files Ghidra can't load (bare headers, truncated stubs, unknown
+    # formats) here, before storing anything — else they fail deep in the pipeline
+    # as an opaque Ghidra 500 and leave a junk row behind.
+    reason = check_analyzable(data, info)
+    if reason is not None:
+        return jsonify(error="not_analyzable", detail=reason), 422
+
     key = f"binaries/{sha256}"
 
     db = get_db()
