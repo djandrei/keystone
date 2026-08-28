@@ -21,24 +21,29 @@ COMPOSE="docker compose -f infra/docker-compose.yml"
 COMPOSE_ENGINE="$COMPOSE -f infra/docker-compose.e2e.yml"  # overlays KEYSTONE_ENGINE_FAKE=1
 
 ENGINE=1
+REAL=0
 FRESH=0
 LOGS=0
 
 for arg in "$@"; do
   case "$arg" in
-    --no-engine)     ENGINE=0 ;;
-    --fresh|--reset) FRESH=1 ;;
-    --logs)          LOGS=1 ;;
-    --down|--stop)   echo "==> stopping"; $COMPOSE_ENGINE --profile engine down; exit 0 ;;
+    --no-engine)      ENGINE=0 ;;
+    --real-engine)    REAL=1 ;;
+    --fresh|--reset)  FRESH=1 ;;
+    --logs)           LOGS=1 ;;
+    --down|--stop)    echo "==> stopping"; $COMPOSE_ENGINE --profile engine down; exit 0 ;;
     -h|--help)
       cat <<'USAGE'
 Start Keystone in the development environment (Docker Compose).
 
-  ./run-dev.sh              up + migrate + bootstrap + fake-engine worker
-  ./run-dev.sh --fresh      wipe the volumes first (clean DB + object store)
-  ./run-dev.sh --no-engine  skip the worker (browse/login/upload work; runs won't)
-  ./run-dev.sh --logs       follow logs after starting
-  ./run-dev.sh --down       stop the stack (keeps data)
+  ./run-dev.sh               up + migrate + bootstrap + fake-engine worker
+  ./run-dev.sh --real-engine real Ghidra + a live LLM: starts ghidra-mcp and a
+                             real worker (needs KEYSTONE_LLM_API_KEY + the LLM
+                             endpoint/model in Settings; generates KEYSTONE_MCP_API_KEY)
+  ./run-dev.sh --fresh       wipe the volumes first (clean DB + object store)
+  ./run-dev.sh --no-engine   skip the worker (browse/login/upload work; runs won't)
+  ./run-dev.sh --logs        follow logs after starting
+  ./run-dev.sh --down        stop the stack (keeps data)
   ./run-dev.sh --help
 USAGE
       exit 0 ;;
@@ -93,7 +98,20 @@ echo "==> bootstrapping (system settings + Default team + admin)"
 $COMPOSE exec -T backend python -m keystone_api.cli bootstrap
 
 # --- analysis worker (fake engine) -------------------------------------------
-if [ "$ENGINE" = 1 ]; then
+if [ "$ENGINE" = 1 ] && [ "$REAL" = 1 ]; then
+  # real engine: authenticated ghidra-mcp + a worker that calls Ghidra and the LLM
+  if ! grep -q '^KEYSTONE_MCP_API_KEY=..' infra/.env; then
+    echo "==> generating KEYSTONE_MCP_API_KEY (shared by ghidra-mcp and the worker)"
+    KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+    if grep -q '^KEYSTONE_MCP_API_KEY=' infra/.env; then
+      sed -i "s|^KEYSTONE_MCP_API_KEY=.*|KEYSTONE_MCP_API_KEY=${KEY}|" infra/.env
+    else
+      printf 'KEYSTONE_MCP_API_KEY=%s\n' "$KEY" >> infra/.env
+    fi
+  fi
+  echo "==> starting real engine: ghidra-mcp + worker (Ghidra + live LLM)"
+  $COMPOSE --profile engine up -d ghidra-mcp worker
+elif [ "$ENGINE" = 1 ]; then
   echo "==> starting the analysis worker (fake engine — no Ghidra/LLM needed)"
   $COMPOSE_ENGINE --profile engine up -d worker
 fi

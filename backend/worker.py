@@ -219,7 +219,10 @@ def run_analysis(analysis_id: int) -> str:
         )
 
         def pipeline(_a):  # type: ignore[no-untyped-def]
-            client.analyze_binary(sample_path)  # idempotent import into Ghidra
+            # import into Ghidra; use the ACTUAL created program name (the staged
+            # file is {sha}_{name}, so Ghidra names it that, not the bare name).
+            result = client.analyze_binary(sample_path)
+            ref.program = result.get("program") or ref.program
             if _a.mode is AnalysisMode.vr:
                 from keystone_engine.pipelines import vr_path
 
