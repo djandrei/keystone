@@ -15,7 +15,10 @@ rate limiting, security headers, `/readyz` + `/metrics`, an 80%-gated test suite
 with `make ci`, a one-command TLS production deploy (see `docs/deployment.md`), and defence in
 depth against prompt injection in the analyzed binaries — an authenticated MCP
 server, a two-stage injection-resistant analyzer, and a ⚠ flag to the reviewer
-(see `docs/security.md`). Everything is test-gated and comes up with one command.
+(see `docs/security.md`). Errors are handled end-to-end — a global JSON error
+handler, worker-side failure capture, traceback logging, `/metrics` error
+counters, and a frontend error boundary (see `docs/observability.md`).
+Everything is test-gated and comes up with one command.
 
 ## Quick start (everything in Docker Compose)
 
