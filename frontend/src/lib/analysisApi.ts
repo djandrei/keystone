@@ -47,7 +47,14 @@ export interface AnalysisRow {
   progress: ProgressSnapshot | null;
   security?: InjectionReport | null;
   re_result?: REResultView;
+  // Dashboard "Task" description (from the list endpoint)
+  binary_filename?: string | null;
+  summary?: TaskSummary | null;
 }
+
+export type TaskSummary =
+  | { kind: "re"; purpose: string | null }
+  | { kind: "vr"; count: number; top_risk: string | null; top_cwe: string | null };
 
 export interface VRFindingRow {
   id: number;

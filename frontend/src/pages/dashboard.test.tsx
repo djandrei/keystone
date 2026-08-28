@@ -24,6 +24,8 @@ function analysis(id: number, team: number, who: string) {
     id, team_id: team, binary_id: 1, mode: "re", status: "succeeded", model: "m",
     params: null, created_by: 1, created_by_username: who, created_at: "2026-08-27T10:00:00",
     started_at: null, finished_at: null, error: null, progress: null,
+    binary_filename: "crackme2.x86_64",
+    summary: { kind: "re", purpose: "A CLI string-comparison tool" },
   };
 }
 
@@ -51,8 +53,15 @@ it("lists recent analyses with the analyst who ran them", async () => {
       HttpResponse.json({ items: [analysis(42, 1, "neo")], total: 1, limit: 50, offset: 0 })),
   );
   renderApp();
-  // the run + the analyst who ran it are listed
-  await waitFor(() => expect(document.body.textContent).toContain("neo"));
+  // the run, the analyst who ran it, and the Task description (binary + a brief
+  // outcome) are all listed — asserted together in waitFor so the settle after
+  // the active team loads (which re-runs the query) doesn't race the checks
+  await waitFor(() => {
+    const t = document.body.textContent ?? "";
+    expect(t).toContain("neo");
+    expect(t).toContain("crackme2.x86_64");
+    expect(t).toContain("A CLI string-comparison tool");
+  });
 });
 
 it("scopes the dashboard to the active team and switches it", async () => {

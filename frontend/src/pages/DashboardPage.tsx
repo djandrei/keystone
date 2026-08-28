@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCurrentUser } from "@/auth/AuthContext";
 import { useTeam } from "@/team/TeamContext";
 import { analysesApi, type AnalysisStatus } from "@/lib/analysisApi";
+import { describeTask } from "@/lib/describeTask";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,6 +76,7 @@ export function DashboardPage() {
             <TR>
               <TH>ID</TH>
               <TH>Mode</TH>
+              <TH>Task</TH>
               <TH>Analyst</TH>
               <TH>Status</TH>
               <TH>Created</TH>
@@ -82,10 +84,18 @@ export function DashboardPage() {
             </TR>
           </THead>
           <TBody>
-            {analyses.map((a) => (
+            {analyses.map((a) => {
+              const task = describeTask(a);
+              return (
               <TR key={a.id}>
                 <TD className="font-medium">#{a.id}</TD>
                 <TD className="uppercase text-fg-muted">{a.mode}</TD>
+                <TD>
+                  <div className="max-w-[16rem]">
+                    <div className="truncate font-medium text-fg" title={task.target}>{task.target}</div>
+                    <div className="truncate text-xs text-fg-muted" title={task.detail}>{task.detail}</div>
+                  </div>
+                </TD>
                 <TD className="text-fg-muted">{a.created_by_username ?? "—"}</TD>
                 <TD>
                   <span className="flex items-center gap-1.5">
@@ -104,7 +114,8 @@ export function DashboardPage() {
                   </div>
                 </TD>
               </TR>
-            ))}
+              );
+            })}
           </TBody>
         </Table>
       ) : (
