@@ -7,6 +7,7 @@ import { binariesApi, analysesApi, projectsApi, type BinaryRow, type ProjectRow 
 import { formatBytes } from "@/lib/formatBytes";
 import { teamsApi } from "@/lib/adminApi";
 import { useTeam } from "@/team/TeamContext";
+import { SharedWithCard } from "@/components/SharedWithCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +47,12 @@ export function BinariesPage() {
     queryFn: () => projectsApi.list(teamNum!),
     enabled: teamNum != null,
   });
+  const { data: team } = useQuery({
+    queryKey: ["team", teamNum],
+    queryFn: () => teamsApi.get(teamNum!),
+    enabled: teamNum != null,
+  });
+  const memberCount = team?.members.length ?? 0;
 
   const [uploadProject, setUploadProject] = useState<string>("");
   const [newProject, setNewProject] = useState("");
@@ -115,6 +122,8 @@ export function BinariesPage() {
         <p className="mt-1 text-fg-muted">Upload a binary into a project, then run an analysis. Samples are never executed.</p>
       </div>
 
+      <SharedWithCard teamId={teamNum} />
+
       <Card>
         <CardHeader>
           <CardTitle>Upload</CardTitle>
@@ -175,6 +184,8 @@ export function BinariesPage() {
               project={p}
               binaries={byProject.get(p.id) ?? []}
               projects={projects}
+              memberCount={memberCount}
+              teamName={team?.name}
               onRename={(name) => renameProject.mutate({ id: p.id, name })}
               onDelete={() => deleteProject.mutate(p.id)}
               onMove={(binaryId, projectId) => move.mutate({ binaryId, projectId })}
@@ -189,11 +200,13 @@ export function BinariesPage() {
 }
 
 function ProjectSection({
-  project, binaries, projects, onRename, onDelete, onMove, onRun, runPending,
+  project, binaries, projects, memberCount, teamName, onRename, onDelete, onMove, onRun, runPending,
 }: {
   project: ProjectRow;
   binaries: BinaryRow[];
   projects: ProjectRow[];
+  memberCount: number;
+  teamName?: string;
   onRename: (name: string) => void;
   onDelete: () => void;
   onMove: (binaryId: number, projectId: number) => void;
@@ -222,6 +235,14 @@ function ProjectSection({
             <CardTitle className="text-base">{project.name}</CardTitle>
           )}
           <Badge variant="info">{binaries.length}</Badge>
+          {memberCount > 0 && (
+            <span
+              className="text-xs text-fg-muted"
+              title={`Shared with all ${memberCount} member${memberCount === 1 ? "" : "s"}${teamName ? ` of ${teamName}` : ""}`}
+            >
+              · shared with {memberCount} member{memberCount === 1 ? "" : "s"}
+            </span>
+          )}
         </button>
         {!project.is_default && !editing && (
           <div className="flex gap-1">

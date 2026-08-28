@@ -11,6 +11,11 @@ import { api } from "@/lib/api";
 import { binariesApi } from "@/lib/analysisApi";
 import { BinariesPage } from "./BinariesPage";
 
+// SharedWithCard reads the current user; the page isn't wrapped in AuthProvider here
+vi.mock("@/auth/AuthContext", () => ({
+  useCurrentUser: () => ({ id: 1, username: "neo", email: "neo@x", role: "admin" }),
+}));
+
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
@@ -24,6 +29,14 @@ const BINARY = {
 const PROJECTS = [
   { id: 9, team_id: 1, name: "Unassigned", is_default: true, binary_count: 1, created_by: 1, created_at: null },
 ];
+
+const TEAM_DETAIL = {
+  id: 1, name: "Blue", created_at: null, created_by: 1,
+  members: [
+    { user_id: 1, username: "neo", team_role: "lead", added_at: null },
+    { user_id: 2, username: "trinity", team_role: "member", added_at: null },
+  ],
+};
 
 it("uploads a binary as multipart FormData (team_id + file)", async () => {
   // axios+FormData+MSW hangs in jsdom, so assert the request the client builds.
@@ -59,6 +72,7 @@ it("lists binaries and starts an RE analysis from Run RE", async () => {
   let started: { binaryId: number } | null = null;
   server.use(
     http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
+    http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
     http.get("/api/projects", () => HttpResponse.json(PROJECTS)),
     http.get("/api/binaries", () => HttpResponse.json([BINARY])),
     http.post("/api/binaries/1/analyses", () => {
@@ -80,10 +94,28 @@ it("lists binaries and starts an RE analysis from Run RE", async () => {
   expect(await screen.findByText("analysis view 77")).toBeInTheDocument();
 });
 
+it("surfaces the team members the projects are shared with", async () => {
+  setAccess("access-1");
+  server.use(
+    http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
+    http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
+    http.get("/api/projects", () => HttpResponse.json(PROJECTS)),
+    http.get("/api/binaries", () => HttpResponse.json([BINARY])),
+  );
+  renderPage();
+  // the "Shared with" panel lists both members and the count
+  expect(await screen.findByText(/shared with 2 members of blue/i)).toBeInTheDocument();
+  expect(screen.getByText("neo")).toBeInTheDocument();
+  expect(screen.getByText("trinity")).toBeInTheDocument();
+  // and each project section shows the shared-with hint
+  expect(screen.getByText(/· shared with 2 members/)).toBeInTheDocument();
+});
+
 it("groups binaries into per-project sections", async () => {
   setAccess("access-1");
   server.use(
     http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
+    http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
     http.get("/api/projects", () => HttpResponse.json([
       { id: 5, team_id: 1, name: "firmware-x", is_default: false, binary_count: 1, created_by: 1, created_at: null },
       { id: 9, team_id: 1, name: "Unassigned", is_default: true, binary_count: 1, created_by: 1, created_at: null },
@@ -106,6 +138,7 @@ it("creates a project", async () => {
   let created: unknown = null;
   server.use(
     http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
+    http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
     http.get("/api/projects", () => HttpResponse.json(PROJECTS)),
     http.get("/api/binaries", () => HttpResponse.json([])),
     http.post("/api/projects", async ({ request }) => {
