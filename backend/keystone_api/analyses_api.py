@@ -10,7 +10,7 @@ from .audit import audit
 from .auth.deps import require_auth
 from .config import get_settings
 from .context import get_db
-from .export import report_json_bundle, text_to_pdf
+from .export import report_json_bundle, text_to_pdf, with_attribution
 from .models import (
     Analysis,
     AnalysisMode,
@@ -321,6 +321,8 @@ def _pinned_public(db, analysis_id: int) -> list[dict]:
             "version_no": v.version_no,
             "is_builtin": v.rule_set.is_builtin,
             "rule_count": len(v.rule_ids or []),
+            # {author, license, url, commit} for imported rules; None for own work
+            "attribution": v.rule_set.attribution,
         }
         for v in pinned_rule_set_versions(db, analysis_id)
     ]
@@ -429,6 +431,13 @@ def export_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
         except Exception:
             report_md = ""
 
+    # An export leaves Keystone, so it is the redistributed artifact — the rule
+    # sets that produced it, and the credit for the imported ones, travel with it.
+    # Applied once here so Markdown, PDF and the JSON bundle's `report_markdown`
+    # all carry the same block.
+    rule_sets = _pinned_public(db, a.id)
+    report_md = with_attribution(report_md, rule_sets)
+
     if fmt == "md":
         return Response(
             report_md or f"# Analysis #{analysis_id}\n",
@@ -440,7 +449,7 @@ def export_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
         findings = [
             _finding_public(f) for f in db.query(VRFinding).filter_by(analysis_id=analysis_id).all()
         ]
-        bundle = report_json_bundle(_public(a), re_result, findings, report_md)
+        bundle = report_json_bundle(_public(a), re_result, findings, report_md, rule_sets)
         return Response(
             bundle,
             mimetype="application/json",

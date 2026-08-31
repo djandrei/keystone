@@ -133,6 +133,7 @@ def test_analysis_detail_names_the_exact_versions_it_ran(app, client, session):
             "version_no": 1,
             "is_builtin": False,
             "rule_count": 1,
+            "attribution": None,  # authored here, so no third-party credit
         }
     ]
 
@@ -258,3 +259,104 @@ def test_findings_carry_rule_set_provenance_through_persist(app, client, session
     session.commit()
     findings = client.get(f"/analyses/{aid}/findings", headers=_h(tok)).get_json()
     assert findings[0]["rule_set_version_id"] == version.id
+
+
+# --------------------------------------------------------------------------- #
+# Exports carry the credit — end to end, through the real endpoint.
+# --------------------------------------------------------------------------- #
+def _vr_analysis_with_report(app, client, session, rule_set_id):
+    """Start a VR analysis pinned to `rule_set_id` and give it a stored report."""
+    from keystone_api.models import Analysis, Binary
+    from keystone_api.persist import persist_vr_result
+    from keystone_engine.results import Report
+
+    store = _FakeStore()
+    app.config["OBJECT_STORE"] = store
+    tok = _tok(client)
+    bid = session.query(Binary).first().id
+    aid = client.post(
+        f"/binaries/{bid}/analyses",
+        headers=_h(tok),
+        json={"mode": "vr", "params": {"rule_set_ids": [rule_set_id]}},
+    ).get_json()["id"]
+    persist_vr_result(
+        session,
+        session.get(Analysis, aid),
+        ([], Report(format="md", content="# VR Analysis — sample.elf\n\nNo findings.\n")),
+        store=store,
+    )
+    session.commit()
+    return aid, tok
+
+
+def test_markdown_export_credits_the_rule_author(app, client, session):
+    _setup(app, client, session)
+    builtin = (
+        session.query(RuleSet)
+        .filter(RuleSet.team_id.is_(None), RuleSet.name.like("%Memory safety%"))
+        .one()
+    )
+    aid, tok = _vr_analysis_with_report(app, client, session, builtin.id)
+
+    md = client.get(f"/analyses/{aid}/export?format=md", headers=_h(tok)).get_data(as_text=True)
+    assert "## Rule sets" in md
+    assert "0xdea · Memory safety (C/C++)** v1" in md
+    assert "Rules by Marco Ivaldi (raptor)" in md
+    assert "MIT" in md and "github.com/0xdea/semgrep-rules" in md
+    # the report itself is still there, and the credit sits under the title
+    assert "No findings." in md
+    assert md.index("## Rule sets") < md.index("No findings.")
+
+
+def test_json_export_carries_the_credit_as_data(app, client, session):
+    import json as _json
+
+    _setup(app, client, session)
+    builtin = (
+        session.query(RuleSet)
+        .filter(RuleSet.team_id.is_(None), RuleSet.name.like("%Memory safety%"))
+        .one()
+    )
+    aid, tok = _vr_analysis_with_report(app, client, session, builtin.id)
+
+    bundle = _json.loads(
+        client.get(f"/analyses/{aid}/export?format=json", headers=_h(tok)).get_data()
+    )
+    assert len(bundle["rule_sets"]) == 1
+    assert bundle["rule_sets"][0]["attribution"]["author"] == "Marco Ivaldi (raptor)"
+    assert "Rules by Marco Ivaldi (raptor)" in bundle["report_markdown"]
+
+
+def test_pdf_export_carries_the_credit(app, client, session):
+    _setup(app, client, session)
+    builtin = (
+        session.query(RuleSet)
+        .filter(RuleSet.team_id.is_(None), RuleSet.name.like("%Memory safety%"))
+        .one()
+    )
+    aid, tok = _vr_analysis_with_report(app, client, session, builtin.id)
+
+    pdf = client.get(f"/analyses/{aid}/export?format=pdf", headers=_h(tok)).get_data()
+    assert pdf.startswith(b"%PDF-1.4")
+    assert rb"Marco Ivaldi \(raptor\)" in pdf
+
+
+def test_an_export_of_our_own_rules_claims_no_third_party_credit(app, client, session):
+    team, _bid, _tok_ = _setup(app, client, session)
+    ours = _rs(session, team.id, "our rules", RULES_A)
+    aid, tok = _vr_analysis_with_report(app, client, session, ours.id)
+
+    md = client.get(f"/analyses/{aid}/export?format=md", headers=_h(tok)).get_data(as_text=True)
+    assert "our rules** v1" in md  # listed as provenance
+    assert "Rules by" not in md  # but credited to nobody
+
+
+def test_an_re_export_has_no_rule_sets_block(app, client, session):
+    """RE runs no Semgrep, so there is nothing to attribute."""
+    _team, bid, tok = _setup(app, client, session)
+    app.config["OBJECT_STORE"] = _FakeStore()
+    aid = client.post(f"/binaries/{bid}/analyses", headers=_h(tok), json={"mode": "re"}).get_json()[
+        "id"
+    ]
+    md = client.get(f"/analyses/{aid}/export?format=md", headers=_h(tok)).get_data(as_text=True)
+    assert "## Rule sets" not in md

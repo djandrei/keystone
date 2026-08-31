@@ -126,6 +126,11 @@ byline in the library and in the Run VR picker, and copied onto a clone (forking
 somebody's rules does not make them yours). Rule sets authored in Keystone carry
 none.
 
+Exported reports carry it too: every export (Markdown, PDF, JSON) opens with a
+`## Rule sets` block naming the exact versions the scan ran and who wrote them, and
+the JSON bundle repeats it as structured `rule_sets` data. An export is the
+redistributed artifact, so the notice goes with it.
+
 Nothing is fetched at runtime: the tree is vendored, the grouping lives in
 `keystone_api/rule_import.py`, and seeding goes through the same idempotent
 `upsert_builtin_ruleset` path. To move to a newer upstream commit, follow
