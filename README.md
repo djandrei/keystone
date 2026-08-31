@@ -139,6 +139,30 @@ just the group that carries it.
 
 Design and staging: [`../docs/rule-sets-plan.md`](../docs/rule-sets-plan.md).
 
+## Function names
+
+Ghidra calls an unrecognised function `FUN_1c0026f90`. Keystone has a model read
+the decompiled body and propose a name and a one-line purpose, then lets you choose
+which functions the report shows.
+
+- **Named during the run**, because RE's decompiled code lives in an in-process
+  cache that dies with the task. RE names the 8 functions it decompiled; VR names
+  the functions behind the findings you triaged (capped at 50 — it decompiles
+  every function, and samples run to thousands).
+- **Picked after the run.** The Functions panel on an analysis has a checkbox per
+  function; the report re-renders on the next read. There is no artifact to
+  regenerate, so it can never be stale.
+- **The Ghidra symbol always shows** beside the friendly name, in the UI and in
+  every export. A suggested name comes from a model reading attacker-controlled
+  code; it is a reading aid, never the identity.
+- **Edit a name by hand** and it is marked `source='user'`, which the naming pass
+  skips from then on — a re-run never undoes a correction.
+- **Nothing is written back into Ghidra.** One project holds every team's programs,
+  so a rename there would cross the team boundary Keystone enforces in Postgres.
+
+Naming rides the cheaper triage model when one is configured, and a naming failure
+never fails an analysis — the run completes with `FUN_` addresses.
+
 ## Testing
 
 ```bash

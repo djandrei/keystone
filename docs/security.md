@@ -38,6 +38,17 @@ verdict. Crude `Classification: benign` injection is rejected by modern models;
    `detect_injection` and badges the version ⚠ in the library. A teammate is not
    an attacker; this is defence in depth, not a threat model change.
 
+5. **A suggested function name is model output, not evidence.** M7 has a model
+   propose names from decompiled bodies, so a binary can try to induce a
+   flattering one — `validate_user_input` on a function that validates nothing.
+   The naming signature states that string constants are not evidence for a name;
+   the code is sanitized and fenced like every other prompt input; and the
+   **original Ghidra symbol and address are printed beside every friendly name**,
+   in the UI and in the report. The friendly name is a reading aid, never the
+   identity. Names are also never written back into Ghidra — one project holds
+   every team's programs, so a rename there would cross the team boundary
+   (see `docs/function-naming-plan.md` §3).
+
 See `keystone_engine/security.py`.
 
 ## OWASP Top 10 for LLM Applications
