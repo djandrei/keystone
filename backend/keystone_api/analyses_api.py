@@ -344,6 +344,9 @@ def get_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
         a, with_result=True, usernames={a.created_by: creator.username} if creator else None
     )
     body["rule_sets"] = _pinned_public(db, a.id)
+    from .models import AnalysisFunction
+
+    body["function_count"] = db.query(AnalysisFunction).filter_by(analysis_id=a.id).count()
     return jsonify(body)
 
 

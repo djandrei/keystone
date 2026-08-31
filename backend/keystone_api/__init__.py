@@ -12,6 +12,7 @@ from .config import Settings, get_settings
 from .context import register_db
 from .db import init_db
 from .errors import register_error_handlers
+from .functions_api import functions_bp
 from .health import health_bp
 from .observability import register_observability
 from .projects_api import projects_bp
@@ -56,6 +57,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(rule_sets_bp)
     app.register_blueprint(binaries_bp)
     app.register_blueprint(analyses_bp)
+    app.register_blueprint(functions_bp)
     app.register_blueprint(audit_bp)
     register_ws(app)
 
