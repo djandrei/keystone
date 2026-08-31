@@ -53,6 +53,19 @@ def _is_canceled(analysis_id: int) -> bool:
     return bool(_redis().get(f"analysis:{analysis_id}:cancel"))
 
 
+def _reserved_names(session, binary_id: int) -> set[str]:
+    """Friendly names already stored for this binary, so a re-run does not propose
+    one another function already holds."""
+    from keystone_api.models import FunctionName
+
+    return {
+        n
+        for (n,) in session.query(FunctionName.suggested_name)
+        .filter(FunctionName.binary_id == binary_id, FunctionName.suggested_name.isnot(None))
+        .all()
+    }
+
+
 def _resolve_semgrep_configs(session, analysis_id: int) -> str | list[str]:
     """The `--config` sources for this analysis.
 
@@ -276,12 +289,18 @@ def _run_analysis(analysis_id: int, session) -> AnalysisStatus:  # type: ignore[
     # Two-model cascade: bind a cheaper triage LM to the VR triage agent, if
     # configured. Everything else runs on the global (analysis) LM.
     triage_agent = None
+    naming_agent = None
     triage_target = resolve_triage_target(sysset, settings)
     if triage_target:
+        from keystone_engine.signatures.naming import make_naming_agent
         from keystone_engine.signatures.triage import make_triage_agent
 
         triage_agent = make_triage_agent()
         triage_agent.set_lm(make_lm(*triage_target))
+        # Naming is the same shape of work as triage — high volume, small answers
+        # — so it rides the cheaper model when one is configured.
+        naming_agent = make_naming_agent()
+        naming_agent.set_lm(make_lm(*triage_target))
         logging.getLogger("keystone.worker").info(
             "VR triage on separate model %s (analysis: %s)",
             triage_target[1],
@@ -313,7 +332,12 @@ def _run_analysis(analysis_id: int, session) -> AnalysisStatus:  # type: ignore[
                 triage_agent=triage_agent,
                 semgrep_config=_resolve_semgrep_configs(session, analysis_id),
             )
-        return re_path.run(ref, client)
+        return re_path.run(
+            ref,
+            client,
+            naming_agent=naming_agent,
+            reserved_names=_reserved_names(session, _a.binary_id),
+        )
 
     def persist(s, a, result):  # type: ignore[no-untyped-def]
         if a.mode is AnalysisMode.vr:

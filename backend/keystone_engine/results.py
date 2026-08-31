@@ -6,7 +6,7 @@ no ORM: the worker maps these onto SQLAlchemy rows at the boundary.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class REResult(BaseModel):
@@ -17,6 +17,9 @@ class REResult(BaseModel):
     language_runtime: str | None = None
     tool_calls: int | None = None
     raw: dict | None = None
+    # Friendly names for the decompiled functions. Carried on the result rather
+    # than persisted by the engine — the engine has no DB.
+    function_names: list = Field(default_factory=list)
 
 
 class VRFinding(BaseModel):

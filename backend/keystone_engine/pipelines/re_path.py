@@ -22,6 +22,7 @@ from keystone_engine.llm.retry import react_with_retry
 from keystone_engine.mcp import GhidraMcpClient
 from keystone_engine.results import Report, REResult
 from keystone_engine.security import detect_injection, fence_untrusted, sanitize_decompiled
+from keystone_engine.signatures.naming import NamedFunction, make_naming_agent, name_functions
 from keystone_engine.signatures.platform import _import_names
 
 _ENTRY_HINTS = ("main", "entry", "_start", "start", "driverentry", "winmain", "dllmain", "wmain")
@@ -129,6 +130,35 @@ def decompile_key_functions(
         out[misses[0]] = code
         cache.put(sha256, misses[0], code)
     return out
+
+
+def _name_decompiled(
+    client: GhidraMcpClient,
+    program: str,
+    decs: dict[str, str],
+    agent: Any | None,
+    reserved: set[str] | None,
+) -> list[NamedFunction]:
+    """Friendly names for the functions we decompiled, keyed by address.
+
+    Addresses come from `list_functions` because a name is stored against the
+    address, not the symbol — the symbol is the thing being replaced. A function
+    whose address we cannot resolve is skipped rather than stored under a key that
+    would not survive re-import.
+    """
+    if not decs:
+        return []
+    addresses = {
+        f["name"]: f.get("address")
+        for f in client.list_functions(program, limit=5000).get("functions", [])
+        if f.get("name")
+    }
+    candidates = [
+        NamedFunction(original_name=fn, address=addresses[fn]) for fn in decs if addresses.get(fn)
+    ]
+    if not candidates:
+        return []
+    return name_functions(candidates, decs, agent or make_naming_agent(), reserved=reserved)
 
 
 def assemble_report(binary: BinaryRef, result: REResult, overview: dict) -> Report:
@@ -293,6 +323,8 @@ def run(
     *,
     analyzer: Any | None = None,
     cache: DecompileCache | None = None,
+    naming_agent: Any | None = None,
+    reserved_names: set[str] | None = None,
 ) -> Generator[ProgressEvent, None, tuple[REResult, Report]]:
     cache = cache or MemoryDecompileCache()
     seq = _Seq()
@@ -311,6 +343,18 @@ def run(
     decs = decompile_key_functions(client, binary.program, binary.sha256, key_fns, cache)
     yield ProgressEvent.step_finish(
         "decompile", seq.next(), count=len(decs), functions=list(decs.keys())
+    )
+
+    # Name the functions while their code is still in hand. RE's decompile cache is
+    # in-process and dies with the task, so this cannot be deferred to a post-run
+    # step the way the report *selection* can (docs/function-naming-plan.md §4).
+    yield ProgressEvent.step_start("name_functions", seq.next(), count=len(decs))
+    named = _name_decompiled(client, binary.program, decs, naming_agent, reserved_names)
+    yield ProgressEvent.step_finish(
+        "name_functions",
+        seq.next(),
+        named=sum(1 for n in named if n.suggested_name),
+        total=len(named),
     )
 
     # Screen the untrusted decompiled text for injection, then sanitize + fence
@@ -340,6 +384,7 @@ def run(
             "security": injection.to_dict(),
             "behavioral_facts": getattr(pred, "behavioral_facts", None),
         },
+        function_names=named,
     )
     yield ProgressEvent.step_finish("analyze", seq.next(), language_runtime=result.language_runtime)
 
