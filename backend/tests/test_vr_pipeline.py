@@ -84,7 +84,7 @@ def test_vr_pipeline_auto_picks_and_annotates(tmp_path):
         triage_agent=TriageStub(),
         reachability_agent=ReachStub(),
     )
-    events, (findings, report) = _drive(gen)
+    events, (findings, report, _named) = _drive(gen)
 
     steps = [(e.type, e.step) for e in events]
     for step in ("decompile", "semgrep", "rule_pick", "triage", "reachability"):
@@ -113,7 +113,7 @@ def test_vr_pipeline_honors_explicit_rule_and_budget(tmp_path):
         triage_agent=TriageStub(),
         reachability_agent=ReachStub(),
     )
-    _events, (findings, _report) = _drive(gen)
+    _events, (findings, _report, _n) = _drive(gen)
     assert len(findings) == 1 and findings[0].rule.endswith("format-string")
 
 
@@ -137,7 +137,7 @@ def test_vr_pipeline_interactive_rule_resolver(tmp_path):
         triage_agent=TriageStub(),
         reachability_agent=ReachStub(),
     )
-    events, (findings, _r) = _drive(gen)
+    events, (findings, _r, _n) = _drive(gen)
     assert any(e.type is ET.needs_input and e.step == "rule_pick" for e in events)
     assert seen["counts"] == {"integer-overflow": 2, "format-string": 1}
     assert len(findings) == 1 and findings[0].rule.endswith("format-string")
@@ -179,7 +179,7 @@ def _run(tmp_path, **kw):
 
 def test_auto_pick_prefers_severity_over_volume(tmp_path):
     """Unattended, the run must not spend its whole budget on 20 INFO typos."""
-    events, (findings, _report) = _run(tmp_path)
+    events, (findings, _report, _n) = _run(tmp_path)
     picked = next(e for e in events if e.step == "rule_pick" and e.type.value == "step_finish")
     assert picked.data["rule"] == "integer-truncation"
     assert picked.data["selected"] == 3
@@ -189,7 +189,7 @@ def test_auto_pick_prefers_severity_over_volume(tmp_path):
 def test_a_resolver_timeout_lands_on_the_same_ranked_default(tmp_path):
     """The resolver returning None (nobody answered) must not fall back to the
     largest class — the pipeline owns the default so both paths agree."""
-    events, (findings, _report) = _run(tmp_path, rule_resolver=lambda counts: None)
+    events, (findings, _report, _n) = _run(tmp_path, rule_resolver=lambda counts: None)
     picked = next(e for e in events if e.step == "rule_pick" and e.type.value == "step_finish")
     assert picked.data["rule"] == "integer-truncation"
 
@@ -208,5 +208,5 @@ def test_the_needs_input_event_carries_the_ranked_summary(tmp_path):
 
 def test_an_explicit_choice_still_wins(tmp_path):
     """Ranking is only the default — the analyst overrides it."""
-    _events, (findings, _report) = _run(tmp_path, rule_resolver=lambda counts: "typos")
+    _events, (findings, _report, _n) = _run(tmp_path, rule_resolver=lambda counts: "typos")
     assert len(findings) == 20

@@ -55,7 +55,9 @@ def _enum_or_none(enum_cls, value):  # type: ignore[no-untyped-def]
 def persist_vr_result(
     session: Session, analysis: Analysis, result: object, *, store: ObjectStore
 ) -> None:
-    findings, report = result  # type: ignore[misc]
+    # The pipeline returns (findings, report, named); the fake engine and older
+    # callers return the pair. Accept both rather than making naming mandatory.
+    findings, report, named = (*result, [])[:3]  # type: ignore[misc]
     for f in findings:
         assert isinstance(f, EngineVR)
         session.add(
@@ -75,6 +77,7 @@ def persist_vr_result(
                 rule_set_version_id=f.rule_set_version_id,
             )
         )
+    persist_function_names(session, analysis, named or [])
     key = _report_key(analysis.id)
     store.put(key, report.content.encode("utf-8"))
     session.add(Report(analysis_id=analysis.id, format=report.format, storage_key=key))

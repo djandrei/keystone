@@ -115,7 +115,7 @@ def test_vr_pipeline_flags_injection(tmp_path):
 
             return P()
 
-    events, (findings, _report) = _drive(
+    events, (findings, _report, _n) = _drive(
         vr_path.run(
             BinaryRef(program="sneaky", sha256=sha, filename="sneaky"),
             client,

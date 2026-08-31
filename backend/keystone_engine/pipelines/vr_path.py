@@ -6,6 +6,7 @@ Agents and the Semgrep runner are injectable so it tests with fakes."""
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
@@ -23,14 +24,76 @@ from keystone_engine.semgrep import (
     rule_class_summary,
     run_semgrep,
 )
+from keystone_engine.signatures.naming import (
+    NamedFunction,
+    make_naming_agent,
+    name_functions,
+)
 from keystone_engine.signatures.reachability import assess_reachability, make_reachability_agent
 from keystone_engine.signatures.triage import make_triage_agent, triage_findings
+
+log = logging.getLogger("keystone.vr")
 
 
 def _code_lookup(finding: VRFinding) -> str:
     if finding.file and Path(finding.file).exists():
         return Path(finding.file).read_text()
     return ""
+
+
+# A pathological rule class could match hundreds of functions; bound the cost and
+# say what was skipped rather than silently truncating.
+FUNCTION_NAMING_MAX = 50
+
+
+def _name_finding_functions(
+    client: GhidraMcpClient,
+    program: str,
+    decompiled_dir: Path,
+    findings: list[VRFinding],
+    agent: Any | None,
+    reserved: set[str] | None,
+) -> list[NamedFunction]:
+    """Friendly names for the functions the triaged findings sit in.
+
+    `VRFinding.file` is `{_safe(function_name)}.c`, so the function is the file
+    stem. Addresses come from `list_functions`; a stem that matches no function —
+    or a function with no address — is skipped, since a name is stored against the
+    address.
+    """
+    stems: list[str] = []
+    for f in findings:
+        if f.file:
+            stem = Path(f.file).stem
+            if stem not in stems:
+                stems.append(stem)
+    if not stems:
+        return []
+
+    if len(stems) > FUNCTION_NAMING_MAX:
+        log.info(
+            "naming the first %d of %d functions with findings; %d skipped",
+            FUNCTION_NAMING_MAX,
+            len(stems),
+            len(stems) - FUNCTION_NAMING_MAX,
+        )
+        stems = stems[:FUNCTION_NAMING_MAX]
+
+    addresses = {
+        f["name"]: f.get("address")
+        for f in client.list_functions(program, limit=5000).get("functions", [])
+        if f.get("name")
+    }
+    candidates, code_of = [], {}
+    for stem in stems:
+        if not addresses.get(stem):
+            continue
+        candidates.append(NamedFunction(original_name=stem, address=addresses[stem]))
+        src = Path(decompiled_dir) / f"{stem}.c"
+        code_of[stem] = src.read_text() if src.exists() else ""
+    if not candidates:
+        return []
+    return name_functions(candidates, code_of, agent or make_naming_agent(), reserved=reserved)
 
 
 def assemble_vr_report(
@@ -68,6 +131,8 @@ def run(
     semgrep_runner: Any | None = None,
     triage_agent: Any | None = None,
     reachability_agent: Any | None = None,
+    naming_agent: Any | None = None,
+    reserved_names: set[str] | None = None,
     rule_resolver: Any | None = None,
     budget: int | None = None,
 ) -> Generator[ProgressEvent, None, tuple[list[VRFinding], Report]]:
@@ -127,8 +192,23 @@ def run(
         "reachability", seq.next(), assessed=sum(1 for f in assessed if f.reachable)
     )
 
+    # Name only the functions the analyst is actually triaging. VR decompiles
+    # EVERY function — real binaries run to thousands of them — so naming the
+    # lot is neither affordable nor useful. The findings already point at the
+    # interesting ones (docs/function-naming-plan.md §5).
+    yield ProgressEvent.step_start("name_functions", seq.next())
+    named = _name_finding_functions(
+        client, binary.program, target, assessed, naming_agent, reserved_names
+    )
+    yield ProgressEvent.step_finish(
+        "name_functions",
+        seq.next(),
+        named=sum(1 for n in named if n.suggested_name),
+        total=len(named),
+    )
+
     report = assemble_vr_report(binary, assessed, chosen)
     yield ProgressEvent(
         type=EventType.done, seq=seq.next(), step="done", data={"findings": len(assessed)}
     )
-    return assessed, report
+    return assessed, report, named

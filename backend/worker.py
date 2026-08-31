@@ -330,6 +330,8 @@ def _run_analysis(analysis_id: int, session) -> AnalysisStatus:  # type: ignore[
                 rule=params.get("rule"),
                 rule_resolver=resolver,
                 triage_agent=triage_agent,
+                naming_agent=naming_agent,
+                reserved_names=_reserved_names(session, _a.binary_id),
                 semgrep_config=_resolve_semgrep_configs(session, analysis_id),
             )
         return re_path.run(
