@@ -10,7 +10,7 @@ from .audit import audit
 from .auth.deps import require_auth
 from .config import get_settings
 from .context import get_db
-from .export import report_json_bundle, text_to_pdf, with_attribution
+from .export import report_json_bundle, text_to_pdf, with_attribution, with_functions
 from .models import (
     Analysis,
     AnalysisMode,
@@ -310,6 +310,32 @@ def list_analyses():  # type: ignore[no-untyped-def]
     )
 
 
+def _functions_public(db, analysis_id: int) -> list[dict]:
+    """The named functions linked to this analysis, in report order."""
+    from .models import AnalysisFunction, FunctionName
+
+    rows = (
+        db.query(FunctionName, AnalysisFunction)
+        .join(AnalysisFunction, AnalysisFunction.function_name_id == FunctionName.id)
+        .filter(AnalysisFunction.analysis_id == analysis_id)
+        .order_by(AnalysisFunction.position, FunctionName.address)
+        .all()
+    )
+    return [
+        {
+            "id": fn.id,
+            "address": fn.address,
+            "original_name": fn.original_name,
+            "suggested_name": fn.suggested_name,
+            "display_name": fn.display_name,
+            "purpose": fn.purpose,
+            "source": fn.source,
+            "included": bool(link.included),
+        }
+        for fn, link in rows
+    ]
+
+
 def _pinned_public(db, analysis_id: int) -> list[dict]:
     """The rule set versions this analysis ran — the visible payoff of pinning:
     a report always names the exact rule text behind it."""
@@ -364,7 +390,10 @@ def get_report(analysis_id: int):  # type: ignore[no-untyped-def]
         content = _store().get(report.storage_key)
     except Exception:
         return jsonify(error="report_unavailable"), 404
-    return Response(content, mimetype="text/markdown")
+    # Composed at read time so the report always reflects the current selection;
+    # the stored artifact stays the engine's own output.
+    md = with_functions(content.decode("utf-8"), _functions_public(db, analysis_id))
+    return Response(md, mimetype="text/markdown")
 
 
 @analyses_bp.post("/analyses/<int:analysis_id>/cancel")
@@ -439,7 +468,8 @@ def export_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
     # Applied once here so Markdown, PDF and the JSON bundle's `report_markdown`
     # all carry the same block.
     rule_sets = _pinned_public(db, a.id)
-    report_md = with_attribution(report_md, rule_sets)
+    functions = _functions_public(db, a.id)
+    report_md = with_functions(with_attribution(report_md, rule_sets), functions)
 
     if fmt == "md":
         return Response(
@@ -452,7 +482,9 @@ def export_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
         findings = [
             _finding_public(f) for f in db.query(VRFinding).filter_by(analysis_id=analysis_id).all()
         ]
-        bundle = report_json_bundle(_public(a), re_result, findings, report_md, rule_sets)
+        bundle = report_json_bundle(
+            _public(a), re_result, findings, report_md, rule_sets, functions
+        )
         return Response(
             bundle,
             mimetype="application/json",

@@ -14,6 +14,7 @@ def report_json_bundle(
     findings: list[dict],
     report_md: str,
     rule_sets: list[dict] | None = None,
+    functions: list[dict] | None = None,
 ) -> bytes:
     bundle = {
         "analysis": analysis,
@@ -23,8 +24,49 @@ def report_json_bundle(
         # The rule set versions this analysis ran, each with its attribution.
         # An exported bundle is a redistributed artifact; the credit goes with it.
         "rule_sets": rule_sets or [],
+        # The functions the analyst chose to show, as structured data.
+        "functions": functions or [],
     }
     return json.dumps(bundle, indent=2).encode("utf-8")
+
+
+def functions_section(functions: list[dict]) -> str:
+    """A Markdown inventory of the functions the analyst kept.
+
+    The original Ghidra symbol and the address are printed beside every friendly
+    name. A suggested name is model output derived from attacker-controlled code —
+    a binary can try to induce a reassuring one — so the report never presents it
+    as the identity.
+    """
+    kept = [f for f in functions if f.get("included")]
+    if not kept:
+        return ""
+    lines = ["## Functions", ""]
+    for f in kept:
+        friendly = f.get("suggested_name")
+        original = f.get("original_name") or "?"
+        address = f.get("address")
+        head = f"- **{friendly}** `{original}`" if friendly else f"- `{original}`"
+        lines.append(f"{head} @ {address}" if address else head)
+        if f.get("purpose"):
+            lines.append(f"  {f['purpose']}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def with_functions(report_md: str, functions: list[dict]) -> str:
+    """Append the function inventory to a report.
+
+    Appended, not inserted under the title where attribution goes: attribution is
+    provenance the reader needs before the findings, while this is a reference
+    list they consult afterwards. Composed at read time, so the report can never
+    be stale relative to the selection — there is nothing to regenerate.
+    """
+    section = functions_section(functions)
+    if not section:
+        return report_md
+    body = report_md if report_md.endswith("\n") else report_md + "\n"
+    return f"{body}\n{section}"
 
 
 def attribution_section(rule_sets: list[dict]) -> str:
