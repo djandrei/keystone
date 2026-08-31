@@ -8,6 +8,13 @@ import { server } from "@/tests/msw/server";
 import { LoginPage } from "./LoginPage";
 import { FindingCard } from "@/components/analysis/FindingCard";
 import { RuleSetPicker } from "@/components/analysis/RuleSetPicker";
+import { FunctionsPanel } from "@/components/analysis/FunctionsPanel";
+import { vi } from "vitest";
+
+vi.mock("@/auth/AuthContext", async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  useAuth: () => ({ user: { id: 1, username: "neo", email: "n@x", role: "analyst" } }),
+}));
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 
@@ -68,5 +75,29 @@ describe("accessibility (axe)", () => {
     );
     // the picker renders into a portal, so axe the whole document body
     expect(await axe(baseElement)).toHaveNoViolations();
+  });
+
+  it("the functions panel has no violations", async () => {
+    server.use(
+      http.get("/api/analyses/77/functions", () =>
+        HttpResponse.json([
+          {
+            id: 1, address: "401146", original_name: "FUN_401146",
+            suggested_name: "parse_ioctl_header", display_name: "parse_ioctl_header",
+            purpose: "Reads the IOCTL code.", source: "llm", included: true,
+          },
+        ]),
+      ),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container, findByText } = render(
+      <ToastProvider>
+        <QueryClientProvider client={qc}>
+          <FunctionsPanel analysisId={77} />
+        </QueryClientProvider>
+      </ToastProvider>,
+    );
+    await findByText("parse_ioctl_header");
+    expect(await axe(container)).toHaveNoViolations();
   });
 });

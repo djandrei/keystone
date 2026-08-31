@@ -9,6 +9,7 @@ import { StepsPanel } from "@/components/analysis/StepsPanel";
 import { StatusPill } from "@/components/analysis/StatusPill";
 import { ReportView } from "@/components/analysis/ReportView";
 import { RulePicker, type RuleClassSummary } from "@/components/analysis/RulePicker";
+import { FunctionsPanel } from "@/components/analysis/FunctionsPanel";
 import { FindingsView } from "@/components/analysis/FindingsView";
 import { ExportBar } from "@/components/analysis/ExportBar";
 import { SecurityBanner } from "@/components/analysis/SecurityBanner";
@@ -150,6 +151,10 @@ export function AnalysisPage() {
       )}
 
       {analysis.status === "succeeded" && !isVr && <ReportView result={analysis.re_result} markdown={report} />}
+
+      {/* Below the report: the names feed into it, so the reader sees the result
+          first and the controls that shape it after. */}
+      {analysis.status === "succeeded" && <FunctionsPanel analysisId={analysis.id} />}
     </div>
   );
 }

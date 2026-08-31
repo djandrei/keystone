@@ -10,6 +10,13 @@ import { server } from "@/tests/msw/server";
 import { MockWebSocket } from "@/tests/mockWebSocket";
 import { AnalysisPage } from "./AnalysisPage";
 
+// FunctionsPanel reads the current user to decide whether to show write controls;
+// the page is not wrapped in <AuthProvider> here.
+vi.mock("@/auth/AuthContext", () => ({
+  useAuth: () => ({ user: { id: 1, username: "neo", email: "n@x", role: "analyst" } }),
+  useCurrentUser: () => ({ id: 1, username: "neo", email: "n@x", role: "analyst" }),
+}));
+
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
@@ -39,6 +46,7 @@ function renderAt(id: number) {
 
 it("renders streamed steps while running", async () => {
   server.use(
+    http.get("/api/analyses/:id/functions", () => HttpResponse.json([])),
     http.get("/api/analyses/5", () =>
       HttpResponse.json({
         id: 5, team_id: 1, binary_id: 1, mode: "re", status: "running", model: "m",
@@ -59,6 +67,7 @@ it("renders streamed steps while running", async () => {
 
 it("renders the RE report when succeeded", async () => {
   server.use(
+    http.get("/api/analyses/:id/functions", () => HttpResponse.json([])),
     http.get("/api/analyses/9", () =>
       HttpResponse.json({
         id: 9, team_id: 1, binary_id: 1, mode: "re", status: "succeeded", model: "m",
@@ -81,6 +90,7 @@ it("renders the RE report when succeeded", async () => {
 
 it("renders VR findings when a VR analysis succeeds", async () => {
   server.use(
+    http.get("/api/analyses/:id/functions", () => HttpResponse.json([])),
     http.get("/api/analyses/11", () =>
       HttpResponse.json({
         id: 11, team_id: 1, binary_id: 1, mode: "vr", status: "succeeded", model: "m",
@@ -106,6 +116,7 @@ it("renders VR findings when a VR analysis succeeds", async () => {
 it("shows the rule picker on needs_input and selects a rule", async () => {
   let picked: string | null = null;
   server.use(
+    http.get("/api/analyses/:id/functions", () => HttpResponse.json([])),
     http.get("/api/analyses/12", () =>
       HttpResponse.json({
         id: 12, team_id: 1, binary_id: 1, mode: "vr", status: "running", model: "m",
@@ -125,6 +136,7 @@ it("shows the rule picker on needs_input and selects a rule", async () => {
 
 it("names the exact rule set versions the scan ran", async () => {
   server.use(
+    http.get("/api/analyses/:id/functions", () => HttpResponse.json([])),
     http.get("/api/analyses/14", () =>
       HttpResponse.json({
         id: 14, team_id: 1, binary_id: 1, mode: "vr", status: "succeeded", model: "m",
@@ -150,6 +162,7 @@ it("names the exact rule set versions the scan ran", async () => {
 
 it("shows no rule-set line on an analysis that pinned none", async () => {
   server.use(
+    http.get("/api/analyses/:id/functions", () => HttpResponse.json([])),
     http.get("/api/analyses/15", () =>
       HttpResponse.json({
         id: 15, team_id: 1, binary_id: 1, mode: "re", status: "queued", model: null,
@@ -165,6 +178,7 @@ it("shows no rule-set line on an analysis that pinned none", async () => {
 
 it("the rule picker ranks by severity, not volume, and marks the default", async () => {
   server.use(
+    http.get("/api/analyses/:id/functions", () => HttpResponse.json([])),
     http.get("/api/analyses/16", () =>
       HttpResponse.json({
         id: 16, team_id: 1, binary_id: 1, mode: "vr", status: "running", model: "m",
@@ -199,6 +213,7 @@ it("the rule picker ranks by severity, not volume, and marks the default", async
 
 it("falls back to count ordering for an analysis with no class summary", async () => {
   server.use(
+    http.get("/api/analyses/:id/functions", () => HttpResponse.json([])),
     http.get("/api/analyses/17", () =>
       HttpResponse.json({
         id: 17, team_id: 1, binary_id: 1, mode: "vr", status: "running", model: "m",
