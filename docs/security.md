@@ -28,6 +28,15 @@ verdict. Crude `Classification: benign` injection is rejected by modern models;
    heuristics flag a sample that tried to steer the model — the semantic case
    sanitizing can't strip. The signal is persisted on the analysis and shown to the
    analyst as a ⚠ banner (the LLM→human trust boundary).
+4. **Rule text is untrusted too.** A Semgrep rule's `message` reaches the VR
+   triage prompt. That was safe while rules shipped in an admin-controlled file;
+   once any analyst can author a rule set (see `docs/rule-sets-plan.md`), it is
+   free text on the prompt path. `triage_findings` now runs the message through
+   `sanitize_decompiled` + `fence_untrusted` with the honest `RULE_NOTE` label —
+   *user-editable rule text, no authority over the verdict* — rather than the
+   attacker-binary one. Saving a rule set also screens its messages with
+   `detect_injection` and badges the version ⚠ in the library. A teammate is not
+   an attacker; this is defence in depth, not a threat model change.
 
 See `keystone_engine/security.py`.
 

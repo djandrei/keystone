@@ -71,6 +71,7 @@ def persist_vr_result(
                 reachable=f.reachable,
                 entry_path=f.entry_path,
                 confidence=f.confidence,
+                rule_set_version_id=f.rule_set_version_id,
             )
         )
     key = _report_key(analysis.id)

@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import json
 import logging
+import tempfile
 import time
+from pathlib import Path
 
 from celery import Celery
 
@@ -49,6 +51,34 @@ def _publish(analysis_id: int, event: dict) -> None:
 
 def _is_canceled(analysis_id: int) -> bool:
     return bool(_redis().get(f"analysis:{analysis_id}:cancel"))
+
+
+def _resolve_semgrep_configs(session, analysis_id: int) -> str | list[str]:
+    """The `--config` sources for this analysis.
+
+    Rule sets are resolved and pinned when the analysis is created
+    (`analyses_api.start_analysis`), so here we only read the pin and write the
+    YAML out. `materialize` namespaces every rule id, which is what keeps two
+    rule sets that define the same id distinguishable in the findings.
+
+    No pin means a pre-M6 analysis or a deployment that has seeded no library —
+    fall back to the legacy single env config so nothing regresses.
+    """
+    from keystone_api.services import pinned_rule_set_versions
+    from keystone_engine.rulesets import materialize
+
+    versions = pinned_rule_set_versions(session, analysis_id)
+    if not versions:
+        return get_settings().semgrep_config
+
+    dest = Path(tempfile.gettempdir()) / "keystone-rulesets" / str(analysis_id)
+    configs = materialize([(v.id, v.content) for v in versions], dest)
+    logging.getLogger("keystone.worker").info(
+        "VR scan pinned to %d rule set version(s): %s",
+        len(versions),
+        ", ".join(f"{v.rule_set.name} v{v.version_no}" for v in versions),
+    )
+    return configs
 
 
 def _make_rule_resolver(analysis_id: int, timeout: int = 300, interval: int = 2):
@@ -262,7 +292,7 @@ def _run_analysis(analysis_id: int, session) -> AnalysisStatus:  # type: ignore[
                 rule=params.get("rule"),
                 rule_resolver=resolver,
                 triage_agent=triage_agent,
-                semgrep_config=settings.semgrep_config,
+                semgrep_config=_resolve_semgrep_configs(session, analysis_id),
             )
         return re_path.run(ref, client)
 

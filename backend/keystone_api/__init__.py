@@ -15,6 +15,7 @@ from .errors import register_error_handlers
 from .health import health_bp
 from .observability import register_observability
 from .projects_api import projects_bp
+from .rule_sets_api import rule_sets_bp
 from .settings_api import settings_bp
 from .teams_api import teams_bp
 from .tokens_api import tokens_bp
@@ -52,6 +53,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(teams_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(projects_bp)
+    app.register_blueprint(rule_sets_bp)
     app.register_blueprint(binaries_bp)
     app.register_blueprint(analyses_bp)
     app.register_blueprint(audit_bp)

@@ -27,8 +27,11 @@ test("M3 end-to-end: VR run with the interactive rule pick -> findings", async (
   await page.locator('input[aria-label="Upload binary"]').setInputFiles(makeElf());
   await expect(page.getByRole("cell", { name: "ksthunk.sys" }).first()).toBeVisible();
 
-  // start VR -> analysis view, which pauses on the rule picker
+  // start VR: the rule-SET picker asks what to scan with, preselecting the
+  // deployment default, then the run pauses on the rule-CLASS picker
   await page.getByRole("button", { name: /run vr/i }).first().click();
+  await expect(page.getByRole("heading", { name: /run vr analysis/i })).toBeVisible();
+  await page.getByRole("button", { name: /start analysis/i }).click();
   await expect(page.getByRole("heading", { name: /Analysis #/ })).toBeVisible();
   await expect(page.getByText(/choose a rule class/i)).toBeVisible({ timeout: 20_000 });
 

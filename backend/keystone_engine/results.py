@@ -31,6 +31,8 @@ class VRFinding(BaseModel):
     reachable: str | None = None
     entry_path: str | None = None
     confidence: str | None = None
+    # Which pinned ruleset version fired this rule (see rulesets.materialize).
+    rule_set_version_id: int | None = None
 
 
 class Report(BaseModel):

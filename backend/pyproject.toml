@@ -19,6 +19,9 @@ dependencies = [
     "redis>=5.0",
     "boto3>=1.34",
     "flask-sock>=0.7",
+    # Rule-set validation runs in the API, which has no Semgrep. Declared
+    # explicitly rather than relied on as a dspy transitive.
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]

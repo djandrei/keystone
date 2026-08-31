@@ -14,8 +14,9 @@ from pathlib import Path
 
 from keystone_engine.mcp import GhidraMcpClient
 from keystone_engine.results import VRFinding
+from keystone_engine.rulesets import rule_set_version_of
 
-SemgrepRunner = Callable[[str, str], dict]
+SemgrepRunner = Callable[[str, list[str]], dict]
 
 
 def decompile_program_to_dir(
@@ -48,13 +49,27 @@ def _safe(name: str) -> str:
     return "".join(c if c.isalnum() or c in "._-" else "_" for c in name) or "fn"
 
 
-def _default_semgrep_runner(target_dir: str, config: str) -> dict:
-    proc = subprocess.run(
-        ["semgrep", "--config", config, "--json", "--quiet", target_dir],
-        capture_output=True,
-        text=True,
-        timeout=1800,
-    )
+# Per-rule-per-file cap. A `pattern-regex` can backtrack catastrophically and no
+# validator can reliably spot it beforehand; a rule that times out 3 times is
+# dropped, so one bad pattern degrades the scan instead of hanging the worker.
+RULE_TIMEOUT_SECONDS = 30
+RULE_TIMEOUT_THRESHOLD = 3
+
+
+def _default_semgrep_runner(target_dir: str, configs: list[str]) -> dict:
+    cmd = [
+        "semgrep",
+        "--json",
+        "--quiet",
+        "--timeout",
+        str(RULE_TIMEOUT_SECONDS),
+        "--timeout-threshold",
+        str(RULE_TIMEOUT_THRESHOLD),
+    ]
+    for config in configs:
+        cmd += ["--config", config]
+    cmd.append(target_dir)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
     return json.loads(proc.stdout or "{}")
 
 
@@ -72,22 +87,30 @@ def parse_semgrep(raw: dict) -> list[VRFinding]:
     for r in raw.get("results", []):
         start = r.get("start", {})
         extra = r.get("extra", {})
+        check_id = r.get("check_id")
         findings.append(
             VRFinding(
-                rule=r.get("check_id"),
+                rule=check_id,
                 file=r.get("path"),
                 line=start.get("line"),
                 semgrep_message=extra.get("message"),
+                # None unless the rule came through `rulesets.materialize`.
+                rule_set_version_id=rule_set_version_of(check_id),
             )
         )
     return findings
 
 
 def run_semgrep(
-    target_dir: str | Path, config: str, *, runner: SemgrepRunner | None = None
+    target_dir: str | Path,
+    configs: str | list[str],
+    *,
+    runner: SemgrepRunner | None = None,
 ) -> list[VRFinding]:
+    """Scan `target_dir` with one or more `--config` sources. A bare string is
+    accepted so the legacy single-ruleset path (and its callers) still work."""
     runner = runner or _default_semgrep_runner
-    raw = runner(str(target_dir), config)
+    raw = runner(str(target_dir), [configs] if isinstance(configs, str) else list(configs))
     return parse_semgrep(raw)
 
 

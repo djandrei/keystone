@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { settingsApi, type TestConnectionResult } from "@/lib/adminApi";
+import { ruleSetsApi } from "@/lib/ruleSetsApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,8 +21,7 @@ export function SettingsPage() {
   const [triageModel, setTriageModel] = useState("");
   const [triageEndpoint, setTriageEndpoint] = useState("");
   const [triageProbe, setTriageProbe] = useState<TestConnectionResult | null>(null);
-  const [semgrep, setSemgrep] = useState("");
-  const [semgrepError, setSemgrepError] = useState<string | null>(null);
+  const [defaultRuleSet, setDefaultRuleSet] = useState("");
   const [probe, setProbe] = useState<TestConnectionResult | null>(null);
 
   useEffect(() => {
@@ -30,22 +30,21 @@ export function SettingsPage() {
       setModel(data.default_model ?? "");
       setTriageModel(data.triage_model ?? "");
       setTriageEndpoint(data.triage_endpoint_url ?? "");
-      setSemgrep(data.semgrep_config ? JSON.stringify(data.semgrep_config, null, 2) : "");
+      setDefaultRuleSet(data.default_rule_set_id ? String(data.default_rule_set_id) : "");
     }
   }, [data]);
 
+  const { data: ruleSets } = useQuery({ queryKey: ["rule-sets"], queryFn: () => ruleSetsApi.list() });
+
   const save = useMutation({
-    mutationFn: () => {
-      let semgrep_config: Record<string, unknown> | null = null;
-      if (semgrep.trim()) semgrep_config = JSON.parse(semgrep) as Record<string, unknown>;
-      return settingsApi.update({
+    mutationFn: () =>
+      settingsApi.update({
         llm_endpoint_url: endpoint || null,
         default_model: model || null,
         triage_model: triageModel || null,
         triage_endpoint_url: triageEndpoint || null,
-        semgrep_config,
-      });
-    },
+        default_rule_set_id: defaultRuleSet ? Number(defaultRuleSet) : null,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["settings"] });
       toast({ title: "Settings saved", variant: "success" });
@@ -67,15 +66,6 @@ export function SettingsPage() {
 
   function onSave(e: React.FormEvent) {
     e.preventDefault();
-    setSemgrepError(null);
-    if (semgrep.trim()) {
-      try {
-        JSON.parse(semgrep);
-      } catch {
-        setSemgrepError("Semgrep config must be valid JSON.");
-        return;
-      }
-    }
     save.mutate();
   }
 
@@ -193,17 +183,24 @@ export function SettingsPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="s-semgrep">Semgrep config (JSON)</Label>
-              <textarea
-                id="s-semgrep"
-                value={semgrep}
-                onChange={(e) => setSemgrep(e.target.value)}
-                rows={5}
-                spellCheck={false}
-                className="w-full rounded-lg border border-border bg-panel-2 p-3 font-mono text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber"
-                placeholder='{ "rules": "p/ci" }'
-              />
-              {semgrepError && <span className="text-xs text-critical">{semgrepError}</span>}
+              <Label htmlFor="s-default-rule-set">Default rule set</Label>
+              <select
+                id="s-default-rule-set"
+                value={defaultRuleSet}
+                onChange={(e) => setDefaultRuleSet(e.target.value)}
+                className="h-10 w-full rounded-lg border border-border bg-panel-2 px-3 text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber"
+              >
+                <option value="">None — VR falls back to the bundled rules file</option>
+                {(ruleSets ?? []).map((rs) => (
+                  <option key={rs.id} value={String(rs.id)}>
+                    {rs.name}
+                    {rs.is_builtin ? " (built-in)" : ""}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-fg-muted">
+                Preselected in the Run VR picker. Analysts can choose others per analysis.
+              </span>
             </div>
 
             <div className="flex items-center gap-2">

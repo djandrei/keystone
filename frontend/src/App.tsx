@@ -3,6 +3,7 @@ import { LoginPage } from "@/pages/LoginPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { BinariesPage } from "@/pages/BinariesPage";
 import { AnalysisPage } from "@/pages/AnalysisPage";
+import { RuleSetsPage } from "@/pages/RuleSetsPage";
 import { UsersAdminPage } from "@/pages/admin/UsersAdminPage";
 import { TeamsAdminPage } from "@/pages/admin/TeamsAdminPage";
 import { SettingsPage } from "@/pages/admin/SettingsPage";
@@ -19,6 +20,7 @@ export function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/binaries" element={<BinariesPage />} />
           <Route path="/analyses/:id" element={<AnalysisPage />} />
+          <Route path="/rule-sets" element={<RuleSetsPage />} />
           <Route element={<RequireRole roles={["admin"]} />}>
             <Route path="/admin/users" element={<UsersAdminPage />} />
             <Route path="/admin/teams" element={<TeamsAdminPage />} />

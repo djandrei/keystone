@@ -122,3 +122,43 @@ it("shows the rule picker on needs_input and selects a rule", async () => {
   await userEvent.click(await screen.findByRole("button", { name: /integer-overflow/ }));
   await waitFor(() => expect(picked).toBe("integer-overflow"));
 });
+
+it("names the exact rule set versions the scan ran", async () => {
+  server.use(
+    http.get("/api/analyses/14", () =>
+      HttpResponse.json({
+        id: 14, team_id: 1, binary_id: 1, mode: "vr", status: "succeeded", model: "m",
+        params: { rule: "dangerous-copy" }, created_by: 1, created_at: null, started_at: null,
+        finished_at: null, error: null, progress: { events: [] },
+        rule_sets: [
+          { rule_set_id: 3, rule_set_version_id: 30, name: "Decompiled C", version_no: 1, is_builtin: true, rule_count: 4 },
+          { rule_set_id: 7, rule_set_version_id: 71, name: "firmware rules", version_no: 2, is_builtin: false, rule_count: 3 },
+        ],
+      }),
+    ),
+    http.get("/api/analyses/14/report", () => HttpResponse.text("# VR Analysis")),
+    http.get("/api/analyses/14/findings", () => HttpResponse.json([])),
+  );
+  renderAt(14);
+  expect(await screen.findByText("Rule sets:")).toBeInTheDocument();
+  // the pinned version number, not just the name — that's what keeps the report
+  // explainable after the rule set moves on
+  expect(screen.getByText("v1")).toBeInTheDocument();
+  expect(screen.getByText("v2")).toBeInTheDocument();
+  expect(screen.getByText(/firmware rules/)).toBeInTheDocument();
+});
+
+it("shows no rule-set line on an analysis that pinned none", async () => {
+  server.use(
+    http.get("/api/analyses/15", () =>
+      HttpResponse.json({
+        id: 15, team_id: 1, binary_id: 1, mode: "re", status: "queued", model: null,
+        params: null, created_by: 1, created_at: null, started_at: null, finished_at: null,
+        error: null, progress: { events: [] }, rule_sets: [],
+      }),
+    ),
+  );
+  renderAt(15);
+  await screen.findByText(/Analysis #15/);
+  expect(screen.queryByText("Rule sets:")).not.toBeInTheDocument();
+});

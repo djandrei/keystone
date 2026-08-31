@@ -22,7 +22,13 @@ from .models import (
     VRFinding,
 )
 from .rbac import can_access_team, require_role, scope_to_teams
-from .services import get_or_create_settings
+from .services import (
+    RuleSetResolutionError,
+    get_or_create_settings,
+    pin_rule_sets,
+    pinned_rule_set_versions,
+    resolve_rule_set_versions,
+)
 from .storage import ObjectStore, get_object_store
 
 analyses_bp = Blueprint("analyses", __name__)
@@ -82,6 +88,7 @@ def _finding_public(f: VRFinding) -> dict:
         "reachable": f.reachable,
         "entry_path": f.entry_path,
         "confidence": f.confidence,
+        "rule_set_version_id": f.rule_set_version_id,
     }
 
 
@@ -134,17 +141,29 @@ def start_analysis(binary_id: int):  # type: ignore[no-untyped-def]
         return jsonify(error="invalid_mode", allowed=[m.value for m in AnalysisMode]), 400
 
     sysset = get_or_create_settings(db)
+    params = payload.get("params")
+
+    # VR only: resolve the rule sets now so a bad or foreign id is a 400 here
+    # rather than a failed job twenty minutes later.
+    versions = []
+    if mode is AnalysisMode.vr:
+        try:
+            versions = resolve_rule_set_versions(db, binary.team_id, params, sysset)
+        except RuleSetResolutionError as e:
+            return jsonify(error="invalid_rule_set", detail=str(e)), 400
+
     analysis = Analysis(
         team_id=binary.team_id,
         binary_id=binary.id,
         mode=mode,
         status=AnalysisStatus.queued,
         model=sysset.default_model,
-        params=payload.get("params"),
+        params=params,
         created_by=g.principal.user.id,
     )
     db.add(analysis)
     db.flush()
+    pin_rule_sets(db, analysis.id, versions)
     audit(
         db,
         g.principal,
@@ -291,6 +310,22 @@ def list_analyses():  # type: ignore[no-untyped-def]
     )
 
 
+def _pinned_public(db, analysis_id: int) -> list[dict]:
+    """The rule set versions this analysis ran — the visible payoff of pinning:
+    a report always names the exact rule text behind it."""
+    return [
+        {
+            "rule_set_id": v.rule_set_id,
+            "rule_set_version_id": v.id,
+            "name": v.rule_set.name,
+            "version_no": v.version_no,
+            "is_builtin": v.rule_set.is_builtin,
+            "rule_count": len(v.rule_ids or []),
+        }
+        for v in pinned_rule_set_versions(db, analysis_id)
+    ]
+
+
 @analyses_bp.get("/analyses/<int:analysis_id>")
 @require_auth
 def get_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
@@ -303,11 +338,11 @@ def get_analysis(analysis_id: int):  # type: ignore[no-untyped-def]
     from .models import User
 
     creator = db.get(User, a.created_by)
-    return jsonify(
-        _public(
-            a, with_result=True, usernames={a.created_by: creator.username} if creator else None
-        )
+    body = _public(
+        a, with_result=True, usernames={a.created_by: creator.username} if creator else None
     )
+    body["rule_sets"] = _pinned_public(db, a.id)
+    return jsonify(body)
 
 
 @analyses_bp.get("/analyses/<int:analysis_id>/report")

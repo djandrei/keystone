@@ -26,6 +26,24 @@ const BINARY = {
   ghidra_program_name: "ls", uploaded_by: 1, created_at: null,
 };
 
+// The Run VR picker reads the deployment default and the library.
+const SETTINGS = {
+  llm_endpoint_url: null, default_model: null, triage_model: null, triage_endpoint_url: null,
+  default_rule_set_id: 3, updated_by: null, updated_at: null,
+  llm_key_configured: false, triage_key_configured: false,
+};
+
+const RULE_SETS = [
+  {
+    id: 3, team_id: null, name: "Decompiled C — VR defaults", description: null, languages: ["c"],
+    is_builtin: true, archived: false, created_by: null, created_at: null,
+    latest_version: {
+      id: 30, version_no: 1, content_sha256: "x", rule_ids: ["dangerous-copy"], rule_count: 1,
+      notes: null, security: null, created_by: null, created_at: null,
+    },
+  },
+];
+
 const PROJECTS = [
   { id: 9, team_id: 1, name: "Unassigned", is_default: true, binary_count: 1, created_by: 1, created_at: null },
 ];
@@ -79,6 +97,8 @@ it("lists binaries and starts an RE analysis from Run RE", async () => {
     http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
     http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
     http.get("/api/projects", () => HttpResponse.json(PROJECTS)),
+    http.get("/api/settings", () => HttpResponse.json(SETTINGS)),
+    http.get("/api/rule-sets", () => HttpResponse.json(RULE_SETS)),
     http.get("/api/binaries", () => HttpResponse.json([BINARY])),
     http.post("/api/binaries/1/analyses", () => {
       started = { binaryId: 1 };
@@ -105,6 +125,8 @@ it("surfaces the team members the projects are shared with", async () => {
     http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
     http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
     http.get("/api/projects", () => HttpResponse.json(PROJECTS)),
+    http.get("/api/settings", () => HttpResponse.json(SETTINGS)),
+    http.get("/api/rule-sets", () => HttpResponse.json(RULE_SETS)),
     http.get("/api/binaries", () => HttpResponse.json([BINARY])),
   );
   renderPage();
@@ -125,6 +147,8 @@ it("groups binaries into per-project sections", async () => {
       { id: 5, team_id: 1, name: "firmware-x", is_default: false, binary_count: 1, created_by: 1, created_at: null },
       { id: 9, team_id: 1, name: "Unassigned", is_default: true, binary_count: 1, created_by: 1, created_at: null },
     ])),
+    http.get("/api/settings", () => HttpResponse.json(SETTINGS)),
+    http.get("/api/rule-sets", () => HttpResponse.json(RULE_SETS)),
     http.get("/api/binaries", () => HttpResponse.json([
       { ...BINARY, id: 1, filename: "fw.bin", project_id: 5, project_name: "firmware-x" },
       { ...BINARY, id: 2, filename: "ls", project_id: 9, project_name: "Unassigned" },
@@ -145,6 +169,8 @@ it("creates a project", async () => {
     http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
     http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
     http.get("/api/projects", () => HttpResponse.json(PROJECTS)),
+    http.get("/api/settings", () => HttpResponse.json(SETTINGS)),
+    http.get("/api/rule-sets", () => HttpResponse.json(RULE_SETS)),
     http.get("/api/binaries", () => HttpResponse.json([])),
     http.post("/api/projects", async ({ request }) => {
       created = await request.json();
@@ -165,6 +191,8 @@ it("deletes an empty project", async () => {
     http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
     http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
     http.get("/api/projects", () => HttpResponse.json(PROJECTS_TWO)),
+    http.get("/api/settings", () => HttpResponse.json(SETTINGS)),
+    http.get("/api/rule-sets", () => HttpResponse.json(RULE_SETS)),
     http.get("/api/binaries", () => HttpResponse.json([])),
     http.delete("/api/projects/5", () => { deleted = "5"; return new HttpResponse(null, { status: 204 }); }),
   );
@@ -179,6 +207,8 @@ it("surfaces 'move them out first' when deleting a non-empty project", async () 
     http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
     http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
     http.get("/api/projects", () => HttpResponse.json(PROJECTS_TWO)),
+    http.get("/api/settings", () => HttpResponse.json(SETTINGS)),
+    http.get("/api/rule-sets", () => HttpResponse.json(RULE_SETS)),
     http.get("/api/binaries", () => HttpResponse.json([])),
     http.delete("/api/projects/5", () => HttpResponse.json({ error: "has_binaries", binaries: 2 }, { status: 409 })),
   );
@@ -194,6 +224,8 @@ it("renames a project", async () => {
     http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
     http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
     http.get("/api/projects", () => HttpResponse.json(PROJECTS_TWO)),
+    http.get("/api/settings", () => HttpResponse.json(SETTINGS)),
+    http.get("/api/rule-sets", () => HttpResponse.json(RULE_SETS)),
     http.get("/api/binaries", () => HttpResponse.json([])),
     http.patch("/api/projects/5", async ({ request }) => {
       renamed = (await request.json()) as { name?: string };
@@ -206,4 +238,117 @@ it("renames a project", async () => {
   await userEvent.clear(input);
   await userEvent.type(input, "fw-y{Enter}");
   await waitFor(() => expect(renamed).toMatchObject({ name: "fw-y" }));
+});
+
+// --------------------------------------------------------------------------- //
+// Run VR now asks which rule sets to scan with, before the analysis starts.
+// --------------------------------------------------------------------------- //
+const RULE_SETS_TWO = [
+  RULE_SETS[0],
+  {
+    id: 7, team_id: 1, name: "firmware rules", description: null, languages: ["c"],
+    is_builtin: false, archived: false, created_by: 1, created_at: null,
+    latest_version: {
+      id: 70, version_no: 2, content_sha256: "y", rule_ids: ["a", "b"], rule_count: 2,
+      notes: null, security: null, created_by: 1, created_at: null,
+    },
+  },
+];
+
+function vrHandlers(onStart: (body: Record<string, unknown>) => void, ruleSets = RULE_SETS_TWO) {
+  return [
+    http.get("/api/teams", () => HttpResponse.json([{ id: 1, name: "Blue", created_at: null, created_by: 1 }])),
+    http.get("/api/teams/:id", () => HttpResponse.json(TEAM_DETAIL)),
+    http.get("/api/projects", () => HttpResponse.json(PROJECTS)),
+    http.get("/api/settings", () => HttpResponse.json(SETTINGS)),
+    http.get("/api/rule-sets", () => HttpResponse.json(ruleSets)),
+    http.get("/api/binaries", () => HttpResponse.json([BINARY])),
+    http.post("/api/binaries/1/analyses", async ({ request }) => {
+      onStart((await request.json()) as Record<string, unknown>);
+      return HttpResponse.json({ id: 77, mode: "vr", status: "queued" }, { status: 201 });
+    }),
+  ];
+}
+
+it("Run VR opens the rule-set picker instead of starting immediately", async () => {
+  setAccess("access-1");
+  let started: Record<string, unknown> | null = null;
+  server.use(...vrHandlers((b) => (started = b)));
+  renderPage();
+
+  await userEvent.click(await screen.findByText("Run VR"));
+  expect(await screen.findByText("Run VR analysis")).toBeInTheDocument();
+  expect(started).toBeNull(); // nothing started yet — the analyst has to choose
+
+  await userEvent.click(screen.getByText("Start analysis"));
+  await waitFor(() => expect(started).not.toBeNull());
+});
+
+it("preselects the deployment default rule set", async () => {
+  setAccess("access-1");
+  let started: Record<string, unknown> | null = null;
+  server.use(...vrHandlers((b) => (started = b)));
+  renderPage();
+
+  await userEvent.click(await screen.findByText("Run VR"));
+  // SETTINGS.default_rule_set_id === 3, the built-in
+  const builtin = await screen.findByLabelText("Decompiled C — VR defaults");
+  expect(builtin).toBeChecked();
+  expect(screen.getByLabelText("firmware rules")).not.toBeChecked();
+
+  await userEvent.click(screen.getByText("Start analysis"));
+  await waitFor(() => expect(started).not.toBeNull());
+  expect((started as unknown as { params: { rule_set_ids: number[] } }).params.rule_set_ids).toEqual([3]);
+});
+
+it("sends every selected rule set, and the rule-class pause flag", async () => {
+  setAccess("access-1");
+  let started: Record<string, unknown> | null = null;
+  server.use(...vrHandlers((b) => (started = b)));
+  renderPage();
+
+  await userEvent.click(await screen.findByText("Run VR"));
+  await userEvent.click(await screen.findByLabelText("firmware rules"));
+  await userEvent.click(screen.getByText("Start analysis"));
+
+  await waitFor(() => expect(started).not.toBeNull());
+  const params = (started as unknown as { params: { rule_set_ids: number[]; interactive: boolean } }).params;
+  expect(params.rule_set_ids).toEqual([3, 7]);
+  expect(params.interactive).toBe(true);
+});
+
+it("the rule-class pause can be turned off before starting", async () => {
+  setAccess("access-1");
+  let started: Record<string, unknown> | null = null;
+  server.use(...vrHandlers((b) => (started = b)));
+  renderPage();
+
+  await userEvent.click(await screen.findByText("Run VR"));
+  await userEvent.click(await screen.findByLabelText("Pause to pick a rule class after the scan"));
+  await userEvent.click(screen.getByText("Start analysis"));
+
+  await waitFor(() => expect(started).not.toBeNull());
+  expect((started as unknown as { params: { interactive: boolean } }).params.interactive).toBe(false);
+});
+
+it("cancelling the picker starts nothing", async () => {
+  setAccess("access-1");
+  let started: Record<string, unknown> | null = null;
+  server.use(...vrHandlers((b) => (started = b)));
+  renderPage();
+
+  await userEvent.click(await screen.findByText("Run VR"));
+  await userEvent.click(await screen.findByText("Cancel"));
+  await waitFor(() => expect(screen.queryByText("Run VR analysis")).not.toBeInTheDocument());
+  expect(started).toBeNull();
+});
+
+it("cannot start with nothing selected", async () => {
+  setAccess("access-1");
+  server.use(...vrHandlers(() => {}, []));
+  renderPage();
+
+  await userEvent.click(await screen.findByText("Run VR"));
+  expect(await screen.findByText(/No rule sets available/)).toBeInTheDocument();
+  expect(screen.getByText("Start analysis")).toBeDisabled();
 });

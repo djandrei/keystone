@@ -62,7 +62,7 @@ def run(
     *,
     rule: str | None = None,
     base_dir: str | None = None,
-    semgrep_config: str = "auto",
+    semgrep_config: str | list[str] = "auto",
     semgrep_runner: Any | None = None,
     triage_agent: Any | None = None,
     reachability_agent: Any | None = None,

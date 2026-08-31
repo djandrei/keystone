@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { analysesApi } from "@/lib/analysisApi";
 import { useAnalysisStream } from "@/lib/useAnalysisStream";
@@ -82,6 +82,24 @@ export function AnalysisPage() {
           )}
         </div>
       </div>
+
+      {/* The pin: the exact rule set versions this scan ran, still named after the
+          rule sets themselves have moved on. */}
+      {analysis.rule_sets && analysis.rule_sets.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-fg-muted">
+          <span>Rule sets:</span>
+          {analysis.rule_sets.map((rs) => (
+            <Link
+              key={rs.rule_set_version_id}
+              to="/rule-sets"
+              className="rounded-full border border-border px-2.5 py-0.5 text-xs text-fg hover:border-amber"
+            >
+              {rs.name} <span className="text-fg-muted">v{rs.version_no}</span>
+              {rs.is_builtin && <span className="text-fg-muted"> · built-in</span>}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <SecurityBanner security={analysis.security} />
 

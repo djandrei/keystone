@@ -18,6 +18,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { UploadDropzone } from "@/components/analysis/UploadDropzone";
+import { RuleSetPicker, type VrStartOptions } from "@/components/analysis/RuleSetPicker";
+import { settingsApi } from "@/lib/adminApi";
 
 function errDetail(err: unknown): string | undefined {
   if (!isAxiosError(err)) return undefined;
@@ -98,11 +100,20 @@ export function BinariesPage() {
     onError: () => toast({ title: "Could not move binary", variant: "error" }),
   });
 
+  // VR asks which rule sets to scan with before it starts; RE runs no Semgrep and
+  // goes straight through.
+  const [vrFor, setVrFor] = useState<number | null>(null);
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: settingsApi.get,
+    retry: false,
+  });
+
   const start = useMutation({
-    mutationFn: ({ binaryId, mode }: { binaryId: number; mode: "re" | "vr" }) =>
-      analysesApi.start(binaryId, mode, mode === "vr" ? { interactive: true } : undefined),
-    onSuccess: (a) => { qc.invalidateQueries({ queryKey: ["analyses"] }); navigate(`/analyses/${a.id}`); },
-    onError: () => toast({ title: "Could not start analysis", variant: "error" }),
+    mutationFn: ({ binaryId, mode, params }: { binaryId: number; mode: "re" | "vr"; params?: Record<string, unknown> }) =>
+      analysesApi.start(binaryId, mode, params),
+    onSuccess: (a) => { setVrFor(null); qc.invalidateQueries({ queryKey: ["analyses"] }); navigate(`/analyses/${a.id}`); },
+    onError: (err) => toast({ title: "Could not start analysis", description: errDetail(err), variant: "error" }),
   });
 
   const byProject = useMemo(() => {
@@ -189,12 +200,24 @@ export function BinariesPage() {
               onRename={(name) => renameProject.mutate({ id: p.id, name })}
               onDelete={() => deleteProject.mutate(p.id)}
               onMove={(binaryId, projectId) => move.mutate({ binaryId, projectId })}
-              onRun={(binaryId, mode) => start.mutate({ binaryId, mode })}
+              onRun={(binaryId, mode) =>
+                mode === "vr" ? setVrFor(binaryId) : start.mutate({ binaryId, mode })
+              }
               runPending={start.isPending}
             />
           ))}
         </div>
       )}
+
+      <RuleSetPicker
+        open={vrFor != null}
+        defaultRuleSetId={settings?.default_rule_set_id ?? null}
+        pending={start.isPending}
+        onCancel={() => setVrFor(null)}
+        onStart={(opts: VrStartOptions) =>
+          start.mutate({ binaryId: vrFor!, mode: "vr", params: { ...opts } })
+        }
+      />
     </div>
   );
 }

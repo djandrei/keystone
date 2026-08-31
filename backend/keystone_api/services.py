@@ -2,20 +2,37 @@
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
+
 from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .models import (
+    BUILTIN_RULESET_NAME,
     DEFAULT_PROJECT_NAME,
+    AnalysisRuleSet,
     Project,
     Role,
+    RuleSet,
+    RuleSetVersion,
     SystemSettings,
     Team,
     TeamMember,
     TeamRole,
     User,
 )
+from .rulesets import RulesetError, content_sha256, validate_ruleset
 from .security import hash_password
+
+log = logging.getLogger("keystone.services")
+
+# The ruleset shipped in the image (backend/semgrep-rules/), seeded as the
+# system built-in. Resolved relative to this file so it works in the container
+# (/app/keystone_api/services.py) and from a source checkout alike.
+BUILTIN_RULESET_PATH = (
+    Path(__file__).resolve().parent.parent / "semgrep-rules" / "decompiled-c.yaml"
+)
 
 
 def get_or_create_settings(session: Session) -> SystemSettings:
@@ -67,10 +84,176 @@ def ensure_membership(session: Session, team: Team, user: User, role: TeamRole) 
         session.flush()
 
 
+def add_rule_set_version(
+    session: Session,
+    rule_set: RuleSet,
+    content: str,
+    *,
+    created_by: int | None = None,
+    notes: str | None = None,
+    security: dict | None = None,
+) -> RuleSetVersion | None:
+    """Append an immutable version. Returns None when `content` matches the latest
+    version byte-for-byte — a save that changes nothing should not manufacture
+    history. Validates first: an invalid document never reaches the DB."""
+    rule_ids, _ = validate_ruleset(content)
+    digest = content_sha256(content)
+
+    latest = (
+        session.query(RuleSetVersion)
+        .filter_by(rule_set_id=rule_set.id)
+        .order_by(RuleSetVersion.version_no.desc())
+        .first()
+    )
+    if latest is not None and latest.content_sha256 == digest:
+        return None
+
+    version = RuleSetVersion(
+        rule_set_id=rule_set.id,
+        version_no=(latest.version_no + 1) if latest else 1,
+        content=content,
+        content_sha256=digest,
+        rule_ids=rule_ids,
+        notes=notes,
+        security=security,
+        created_by=created_by,
+    )
+    session.add(version)
+    session.flush()
+    return version
+
+
+def latest_version(session: Session, rule_set_id: int) -> RuleSetVersion | None:
+    return (
+        session.query(RuleSetVersion)
+        .filter_by(rule_set_id=rule_set_id)
+        .order_by(RuleSetVersion.version_no.desc())
+        .first()
+    )
+
+
+class RuleSetResolutionError(ValueError):
+    """A requested rule set does not exist, is empty, or belongs to another team."""
+
+
+def _assert_visible(rs: RuleSet, team_id: int) -> None:
+    """A built-in is visible to every team; anything else must be the team's own.
+    Checked server-side because a pinned id arrives from the client."""
+    if rs.team_id is not None and rs.team_id != team_id:
+        raise RuleSetResolutionError(f"rule set {rs.id} does not belong to this team")
+
+
+def resolve_rule_set_versions(
+    session: Session, team_id: int, params: dict | None, sysset: SystemSettings
+) -> list[RuleSetVersion]:
+    """The versions a VR analysis should run, in `--config` order.
+
+    Resolution order (docs/rule-sets-plan.md §5):
+      1. `params["rule_set_version_ids"]` — an exact pin
+      2. `params["rule_set_ids"]`         — resolved to each set's latest version
+      3. `SystemSettings.default_rule_set_id`
+      4. nothing — the caller falls back to the legacy env `semgrep_config`
+
+    Resolution happens when the analysis is *created*, not when the worker picks
+    it up, so a bad id is a 400 on the request rather than a failed job, and the
+    pin reflects what the analyst saw in the picker.
+    """
+    params = params or {}
+
+    version_ids = params.get("rule_set_version_ids") or []
+    if version_ids:
+        versions: list[RuleSetVersion] = []
+        for vid in version_ids:
+            v = session.get(RuleSetVersion, vid)
+            if v is None:
+                raise RuleSetResolutionError(f"rule set version {vid} not found")
+            _assert_visible(v.rule_set, team_id)
+            versions.append(v)
+        return versions
+
+    set_ids = params.get("rule_set_ids") or []
+    if not set_ids and sysset.default_rule_set_id is not None:
+        set_ids = [sysset.default_rule_set_id]
+
+    versions = []
+    for sid in set_ids:
+        rs = session.get(RuleSet, sid)
+        if rs is None:
+            raise RuleSetResolutionError(f"rule set {sid} not found")
+        _assert_visible(rs, team_id)
+        v = latest_version(session, rs.id)
+        if v is None:
+            raise RuleSetResolutionError(f"rule set {rs.name!r} has no versions")
+        versions.append(v)
+    return versions
+
+
+def pin_rule_sets(session: Session, analysis_id: int, versions: list[RuleSetVersion]) -> None:
+    """Record which versions this analysis ran. Written at creation so the pin
+    survives a worker that dies mid-scan."""
+    for i, v in enumerate(versions):
+        session.add(AnalysisRuleSet(analysis_id=analysis_id, rule_set_version_id=v.id, position=i))
+
+
+def pinned_rule_set_versions(session: Session, analysis_id: int) -> list[RuleSetVersion]:
+    """The pinned versions in `--config` order — the worker's read side."""
+    rows = (
+        session.query(RuleSetVersion, AnalysisRuleSet.position)
+        .join(AnalysisRuleSet, AnalysisRuleSet.rule_set_version_id == RuleSetVersion.id)
+        .filter(AnalysisRuleSet.analysis_id == analysis_id)
+        .order_by(AnalysisRuleSet.position)
+        .all()
+    )
+    return [v for v, _ in rows]
+
+
+def ensure_builtin_rulesets(session: Session) -> RuleSet | None:
+    """Seed the shipped ruleset as the system built-in. Idempotent, and content-
+    aware: a shipped rule change on the next deploy appends v2 rather than being
+    ignored or duplicating the ruleset.
+
+    Seeding lives here, not in the Alembic migration, so a missing or malformed
+    rules file logs a warning instead of wedging a deployment mid-migration."""
+    try:
+        content = BUILTIN_RULESET_PATH.read_text(encoding="utf-8")
+    except OSError as e:
+        log.warning("built-in ruleset not seeded — cannot read %s: %s", BUILTIN_RULESET_PATH, e)
+        return None
+
+    rs = session.query(RuleSet).filter_by(name=BUILTIN_RULESET_NAME, team_id=None).first()
+    if rs is None:
+        rs = RuleSet(
+            team_id=None,
+            name=BUILTIN_RULESET_NAME,
+            description=(
+                "Vulnerability-research rules for Ghidra-decompiled C, shipped with "
+                "Keystone. Clone it into your team to customize."
+            ),
+            languages=["c"],
+            is_builtin=True,
+        )
+        session.add(rs)
+        session.flush()
+
+    try:
+        add_rule_set_version(session, rs, content, notes="shipped with Keystone")
+    except RulesetError as e:
+        log.warning("built-in ruleset %s failed validation: %s", BUILTIN_RULESET_PATH, e)
+        return rs
+    return rs
+
+
 def bootstrap(session: Session) -> dict:
-    """Ensure the settings singleton, a default team, and the admin. Idempotent."""
-    get_or_create_settings(session)
+    """Ensure the settings singleton, a default team, the admin, and the built-in
+    rule set. Idempotent."""
+    sysset = get_or_create_settings(session)
     cfg = get_settings()
+
+    builtin = ensure_builtin_rulesets(session)
+    # Point the deployment default at the built-in on first boot only — never
+    # overwrite an admin's later choice.
+    if builtin is not None and sysset.default_rule_set_id is None:
+        sysset.default_rule_set_id = builtin.id
 
     team = ensure_team(session, "Default")
     admin = session.query(User).filter_by(username=cfg.admin_username).first()

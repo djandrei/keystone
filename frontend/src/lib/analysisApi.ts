@@ -49,6 +49,7 @@ export interface AnalysisRow {
   progress: ProgressSnapshot | null;
   security?: InjectionReport | null;
   re_result?: REResultView;
+  rule_sets?: PinnedRuleSet[];
   // Dashboard "Task" description (from the list endpoint)
   binary_filename?: string | null;
   summary?: TaskSummary | null;
@@ -71,6 +72,19 @@ export interface VRFindingRow {
   reachable: string | null;
   entry_path: string | null;
   confidence: string | null;
+  /** Which pinned rule set version fired this rule; null on pre-M6 analyses. */
+  rule_set_version_id?: number | null;
+}
+
+/** A rule set version an analysis actually ran — the pin that keeps an old
+ *  report explainable after the rule set has moved on. */
+export interface PinnedRuleSet {
+  rule_set_id: number;
+  rule_set_version_id: number;
+  name: string;
+  version_no: number;
+  is_builtin: boolean;
+  rule_count: number;
 }
 
 export interface AnalysisPage {

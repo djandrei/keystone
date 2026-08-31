@@ -1,4 +1,4 @@
-"""System settings (admin-only): LLM endpoint + default model + semgrep config.
+"""System settings (admin-only): LLM endpoint + default model + the default rule set.
 
 The LLM *key* is a deployment secret (config.llm_api_key) and is never stored in
 or returned from the database — only the endpoint URL and default model live in
@@ -29,7 +29,9 @@ class UpdateSettingsRequest(BaseModel):
     default_model: str | None = Field(default=None, max_length=120)
     triage_model: str | None = Field(default=None, max_length=120)
     triage_endpoint_url: str | None = Field(default=None, max_length=255)
-    semgrep_config: dict | None = None
+    # The rule set a VR analysis falls back to when the request pins none. Replaces
+    # the old free-JSON `semgrep_config`, which nothing ever read.
+    default_rule_set_id: int | None = None
 
 
 class TestConnectionRequest(BaseModel):
@@ -43,7 +45,7 @@ def _public(row) -> dict:  # type: ignore[no-untyped-def]
         "default_model": row.default_model,
         "triage_model": row.triage_model,
         "triage_endpoint_url": row.triage_endpoint_url,
-        "semgrep_config": row.semgrep_config,
+        "default_rule_set_id": row.default_rule_set_id,
         "updated_by": row.updated_by,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         # whether a deployment key is configured — never the key itself
@@ -100,6 +102,11 @@ def put_settings_route():  # type: ignore[no-untyped-def]
         return jsonify(error="invalid_request", detail=e.errors()), 400
     db = get_db()
     fields = {k: v for k, v in body.model_dump(exclude_none=True).items()}
+    if "default_rule_set_id" in fields:
+        from .models import RuleSet
+
+        if db.get(RuleSet, fields["default_rule_set_id"]) is None:
+            return jsonify(error="invalid_rule_set", detail="no such rule set"), 400
     fields["updated_by"] = g.principal.user.id
     row = update_settings(db, **fields)
     audit(

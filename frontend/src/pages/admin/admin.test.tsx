@@ -102,11 +102,12 @@ describe("SettingsPage", () => {
   it("loads and saves settings", async () => {
     let saved: Record<string, unknown> | null = null;
     server.use(
+      http.get("/api/rule-sets", () => HttpResponse.json([])),
       http.get("/api/settings", () =>
         HttpResponse.json({
           llm_endpoint_url: null,
           default_model: null,
-          semgrep_config: null,
+          default_rule_set_id: null,
           updated_by: null,
           updated_at: null,
           llm_key_configured: true,
@@ -130,11 +131,12 @@ describe("SettingsPage", () => {
 
   it("tests the connection and reports the result", async () => {
     server.use(
+      http.get("/api/rule-sets", () => HttpResponse.json([])),
       http.get("/api/settings", () =>
         HttpResponse.json({
           llm_endpoint_url: "https://llm.example/api",
           default_model: "m1",
-          semgrep_config: null,
+          default_rule_set_id: null,
           updated_by: 1,
           updated_at: null,
           llm_key_configured: true,
@@ -152,11 +154,12 @@ describe("SettingsPage", () => {
     let saved: Record<string, unknown> | null = null;
     let probedTarget: string | null = null;
     server.use(
+      http.get("/api/rule-sets", () => HttpResponse.json([])),
       http.get("/api/settings", () =>
         HttpResponse.json({
           llm_endpoint_url: "https://main/api", default_model: "Big",
           triage_model: null, triage_endpoint_url: null,
-          semgrep_config: null, updated_by: 1, updated_at: null,
+          default_rule_set_id: null, updated_by: 1, updated_at: null,
           llm_key_configured: true, triage_key_configured: true,
         }),
       ),
@@ -177,4 +180,43 @@ describe("SettingsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /test triage connection/i }));
     await waitFor(() => expect(probedTarget).toBe("triage"));
   });
+});
+
+it("SettingsPage picks the default rule set from the library, not free JSON", async () => {
+  let saved: Record<string, unknown> | null = null;
+  server.use(
+    http.get("/api/rule-sets", () =>
+      HttpResponse.json([
+        {
+          id: 3, team_id: null, name: "Decompiled C", description: null, languages: ["c"],
+          is_builtin: true, archived: false, created_by: null, created_at: null,
+          latest_version: null,
+        },
+      ]),
+    ),
+    http.get("/api/settings", () =>
+      HttpResponse.json({
+        llm_endpoint_url: null, default_model: null, triage_model: null,
+        triage_endpoint_url: null, default_rule_set_id: null, updated_by: 1, updated_at: null,
+        llm_key_configured: false, triage_key_configured: false,
+      }),
+    ),
+    http.put("/api/settings", async ({ request }) => {
+      saved = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json({
+        llm_endpoint_url: null, default_model: null, triage_model: null,
+        triage_endpoint_url: null, default_rule_set_id: 3, updated_by: 1, updated_at: null,
+        llm_key_configured: false, triage_key_configured: false,
+      });
+    }),
+  );
+  renderPage(<SettingsPage />);
+
+  const select = await screen.findByLabelText("Default rule set");
+  expect(screen.queryByLabelText(/Semgrep config/)).not.toBeInTheDocument();
+  await userEvent.selectOptions(select, "3");
+  await userEvent.click(screen.getByText("Save settings"));
+
+  await waitFor(() => expect(saved).not.toBeNull());
+  expect(saved!.default_rule_set_id).toBe(3);
 });

@@ -8,7 +8,7 @@ vulnerability research**, built on `ghidra-headless-mcp`. See
 **Status: Keystone v1 (M1–M5 complete).** A secure, observable, fully-tested and
 deployable multi-user app: JWT auth + API tokens, users/teams/RBAC, admin system-
 settings and the branded React shell; both analysis paths end-to-end (RE: upload ->
-async analysis -> live Steps -> report; VR: Semgrep -> interactive rule pick ->
+async analysis -> live Steps -> report; VR: pick rule sets -> Semgrep -> interactive rule pick ->
 triage + reachability); the review layer (searchable team-scoped history, MD/JSON/
 PDF export, team switcher, admin audit log, in-app notifications); and hardening —
 rate limiting, security headers, `/readyz` + `/metrics`, an 80%-gated test suite
@@ -73,6 +73,35 @@ Secrets to change for production:
 - `KEYSTONE_TRIAGE_API_KEY` — optional key for a separate, cheaper **triage**
   model (the two-model cascade). Blank ⇒ triage reuses the analysis model/key.
   See `docs/models.md`.
+
+## Semgrep rule sets
+
+The patterns a VR analysis scans decompiled code with are **chosen per analysis**,
+from a library shared at team level.
+
+- **Rule sets** live under **Rule sets** in the nav. A ruleset is a Semgrep
+  `rules:` YAML document stored in the database — no registry fetch, no network
+  egress from the worker.
+- Two tiers. A **built-in** (`team_id IS NULL`) ships with Keystone, is readable by
+  every team, and is writable only by admins; a team **clones** one to customize it.
+  A **team rule set** is created and edited by any analyst on that team.
+- **Versions are immutable.** Saving appends `v2`; `v1` is never rewritten. An
+  analysis pins the exact versions it ran, so a six-month-old finding can still be
+  explained by the rule text that produced it. The analysis page names them.
+- **Run VR** opens a picker: choose one or more rule sets (the deployment default
+  from **Settings → Default rule set** is preselected), and optionally keep the
+  mid-run pause that picks a *rule class* to triage. The two are different
+  questions — rule sets are "what do we look for", the class pick is "of what we
+  found, what gets LLM budget".
+- Content is validated on save (structure, rule ids, severities, size caps) and
+  a rule's `message` is screened for prompt injection, since it reaches the triage
+  model. See [`docs/security.md`](docs/security.md).
+
+The shipped ruleset lives at `backend/semgrep-rules/decompiled-c.yaml` and is
+seeded as the built-in by the idempotent bootstrap; changing that file appends a
+new version on the next boot rather than duplicating the rule set.
+
+Design and staging: [`../docs/rule-sets-plan.md`](../docs/rule-sets-plan.md).
 
 ## Testing
 

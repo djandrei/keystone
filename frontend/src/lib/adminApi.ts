@@ -34,7 +34,8 @@ export interface SystemSettings {
   default_model: string | null;
   triage_model: string | null;
   triage_endpoint_url: string | null;
-  semgrep_config: Record<string, unknown> | null;
+  /** The rule set a VR analysis falls back to when the request pins none. */
+  default_rule_set_id: number | null;
   updated_by: number | null;
   updated_at: string | null;
   llm_key_configured: boolean;
@@ -69,7 +70,7 @@ export const settingsApi = {
   get: () => api.get<SystemSettings>("/settings").then((r) => r.data),
   update: (
     body: Partial<
-      Pick<SystemSettings, "llm_endpoint_url" | "default_model" | "triage_model" | "triage_endpoint_url" | "semgrep_config">
+      Pick<SystemSettings, "llm_endpoint_url" | "default_model" | "triage_model" | "triage_endpoint_url" | "default_rule_set_id">
     >,
   ) =>
     api.put<SystemSettings>("/settings", body).then((r) => r.data),
