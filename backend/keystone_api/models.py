@@ -378,6 +378,69 @@ class AnalysisRuleSet(Base):
 
 
 # --------------------------------------------------------------------------- #
+# Friendly function names: Ghidra calls it FUN_1c0026f90, a reader needs better
+# --------------------------------------------------------------------------- #
+class FunctionName(Base):
+    """A friendly name for one function in one binary.
+
+    Keyed on **address**, not on the Ghidra symbol: the symbol is what we are
+    replacing, and it changes. Names live per *binary* so a second analysis of the
+    same sample reuses them; which ones reach a report is per *analysis*
+    (`AnalysisFunction`).
+
+    Nothing here is ever written back into Ghidra. One project holds every team's
+    programs, so a rename there would be one team editing another's view; keeping
+    names in Postgres inherits `Binary.team_id`'s scope for free. See
+    docs/function-naming-plan.md §3.
+    """
+
+    __tablename__ = "function_names"
+    __table_args__ = (UniqueConstraint("binary_id", "address", name="uq_fn_binary_addr"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    binary_id: Mapped[int] = mapped_column(
+        ForeignKey("binaries.id", ondelete="CASCADE"), index=True
+    )
+    address: Mapped[str] = mapped_column(String(32))
+    original_name: Mapped[str] = mapped_column(String(255))
+    # NULL when the model proposed nothing usable — the original still shows.
+    suggested_name: Mapped[str | None] = mapped_column(String(255))
+    purpose: Mapped[str | None] = mapped_column(Text)
+    # 'llm' when the model proposed it, 'user' once a human corrected it. The
+    # naming pass skips 'user' rows, so a re-run never undoes a correction.
+    source: Mapped[str] = mapped_column(String(16), default="llm")
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = _ts()
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    @property
+    def display_name(self) -> str:
+        return self.suggested_name or self.original_name
+
+
+class AnalysisFunction(Base):
+    """Which named functions this analysis's report shows, and in what order.
+
+    Included by default: a report that shows nothing until you tick boxes is worse
+    than one you trim."""
+
+    __tablename__ = "analysis_functions"
+
+    analysis_id: Mapped[int] = mapped_column(
+        ForeignKey("analyses.id", ondelete="CASCADE"), primary_key=True
+    )
+    function_name_id: Mapped[int] = mapped_column(
+        ForeignKey("function_names.id", ondelete="CASCADE"), primary_key=True
+    )
+    included: Mapped[bool] = mapped_column(Boolean, default=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    function: Mapped[FunctionName] = relationship()
+
+
+# --------------------------------------------------------------------------- #
 # System: settings, tokens, audit
 # --------------------------------------------------------------------------- #
 class SystemSettings(Base):
