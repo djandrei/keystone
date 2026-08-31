@@ -84,7 +84,12 @@ services:
 
   # --- engine profile (M2): heavy / not needed for the M1 backbone ---
   ghidra-mcp:
-    image: ghidra-headless-mcp:local
+    # Purpose-built image (Dockerfile.slim in the server repo): Ghidra 12.1.3 on
+    # eclipse-temurin instead of the general-purpose Ghidra base — half the size, and
+    # nothing in it a headless analyzer does not use. Projects are NOT portable
+    # across Ghidra versions, so switching here means re-importing; the binaries
+    # live in the `samples` volume, and analyze_binary re-imports on demand.
+    image: ghidra-headless-mcp:12.1.3
     profiles: ["engine"]
     environment:
       GHIDRA_INSTALL_DIR: /ghidra
