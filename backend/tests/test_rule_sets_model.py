@@ -53,7 +53,7 @@ def _rs(session, team_id, name="rs", content=RULES):
 def test_bootstrap_seeds_the_builtin_and_points_the_default_at_it(app, session):
     services.bootstrap(session)
     session.commit()
-    rs = session.query(RuleSet).filter_by(team_id=None).one()
+    rs = session.query(RuleSet).filter_by(team_id=None, name=BUILTIN_RULESET_NAME).one()
     assert rs.name == BUILTIN_RULESET_NAME and rs.is_builtin
     assert latest_version(session, rs.id).version_no == 1
     assert get_or_create_settings(session).default_rule_set_id == rs.id
@@ -64,14 +64,14 @@ def test_seeding_is_idempotent(app, session):
     services.bootstrap(session)
     ensure_builtin_rulesets(session)
     session.commit()
-    rs = session.query(RuleSet).filter_by(team_id=None).one()
+    rs = session.query(RuleSet).filter_by(team_id=None, name=BUILTIN_RULESET_NAME).one()
     assert len(rs.versions) == 1
 
 
 def test_a_shipped_content_change_appends_v2(app, session, monkeypatch, tmp_path):
     services.bootstrap(session)
     session.commit()
-    rs = session.query(RuleSet).filter_by(team_id=None).one()
+    rs = session.query(RuleSet).filter_by(team_id=None, name=BUILTIN_RULESET_NAME).one()
     newer = tmp_path / "decompiled-c.yaml"
     newer.write_text(RULES)
     monkeypatch.setattr(services, "BUILTIN_RULESET_PATH", newer)
@@ -85,7 +85,7 @@ def test_missing_rules_file_warns_instead_of_wedging_bootstrap(app, session, mon
     """Seeding lives in the app, not the migration, precisely so this is survivable."""
     monkeypatch.setattr(services, "BUILTIN_RULESET_PATH", tmp_path / "nope.yaml")
     assert services.bootstrap(session)["admin"] == "admin"
-    assert session.query(RuleSet).count() == 0
+    assert session.query(RuleSet).filter_by(team_id=None, name=BUILTIN_RULESET_NAME).count() == 0
 
 
 def test_a_malformed_shipped_file_does_not_abort_bootstrap(app, session, monkeypatch, tmp_path):
@@ -94,7 +94,7 @@ def test_a_malformed_shipped_file_does_not_abort_bootstrap(app, session, monkeyp
     monkeypatch.setattr(services, "BUILTIN_RULESET_PATH", bad)
     services.bootstrap(session)
     session.commit()
-    rs = session.query(RuleSet).filter_by(team_id=None).one()
+    rs = session.query(RuleSet).filter_by(team_id=None, name=BUILTIN_RULESET_NAME).one()
     assert rs.versions == []  # created, but with nothing in it
 
 
@@ -219,7 +219,7 @@ def test_a_builtin_is_resolvable_by_any_team(app, session):
     other = Team(name="Other")
     session.add(other)
     session.flush()
-    builtin = session.query(RuleSet).filter_by(team_id=None).one()
+    builtin = session.query(RuleSet).filter_by(team_id=None, name=BUILTIN_RULESET_NAME).one()
     got = resolve_rule_set_versions(
         session, other.id, {"rule_set_ids": [builtin.id]}, _sysset(session)
     )

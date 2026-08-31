@@ -101,6 +101,31 @@ The shipped ruleset lives at `backend/semgrep-rules/decompiled-c.yaml` and is
 seeded as the built-in by the idempotent bootstrap; changing that file appends a
 new version on the next boot rather than duplicating the rule set.
 
+### Vendored third-party rules
+
+[0xdea/semgrep-rules](https://github.com/0xdea/semgrep-rules) (MIT) — 50 curated
+C/C++ vulnerability-research rules — is vendored under
+`backend/semgrep-rules/0xdea/`, pinned to a commit, and seeded as **five** further
+built-ins grouped by upstream's own `vulnerability_class`:
+
+| Rule set | Rules |
+|---|---|
+| `0xdea · Memory safety (C/C++)` | 20 |
+| `0xdea · Dangerous functions (C/C++)` | 9 |
+| `0xdea · Correctness & control flow (C/C++)` | 10 |
+| `0xdea · Privilege, secrets & crypto (C/C++)` | 8 |
+| `0xdea · Recon & noisy (C/C++)` | 3 |
+
+The last is separated because it is high-volume by design — on a 114-function
+decompiled corpus those three rules produced 87 of 92 findings. Opt into it when
+orienting on an unfamiliar binary, not when hunting a specific bug class.
+
+Nothing is fetched at runtime: the tree is vendored, the grouping lives in
+`keystone_api/rule_import.py`, and seeding goes through the same idempotent
+`upsert_builtin_ruleset` path. To move to a newer upstream commit, follow
+`backend/semgrep-rules/0xdea/UPSTREAM.md` — a changed rule appends a version to
+just the group that carries it.
+
 Design and staging: [`../docs/rule-sets-plan.md`](../docs/rule-sets-plan.md).
 
 ## Testing

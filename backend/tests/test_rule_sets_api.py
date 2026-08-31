@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from keystone_api import services
 from keystone_api.models import (
+    BUILTIN_RULESET_NAME,
     Analysis,
     AnalysisMode,
     AnalysisRuleSet,
@@ -70,8 +71,11 @@ def test_builtin_is_listed_and_sorts_first(app, client, session):
         "/rule-sets", headers=_h(tok), json={"team_id": team.id, "name": "mine", "content": RULES_A}
     )
     rows = client.get("/rule-sets", headers=_h(tok)).get_json()
-    assert rows[0]["is_builtin"] is True and rows[0]["team_id"] is None
-    assert [r["name"] for r in rows][1:] == ["mine"]
+    flags = [r["is_builtin"] for r in rows]
+    # every built-in sorts ahead of every team rule set
+    assert flags == sorted(flags, reverse=True)
+    assert rows[0]["team_id"] is None
+    assert [r["name"] for r in rows if not r["is_builtin"]] == ["mine"]
     # an analyst who has authored nothing still has something to pick
     assert rows[0]["latest_version"]["rule_count"] >= 1
 
@@ -177,7 +181,7 @@ def test_validate_endpoint_reports_without_saving(app, client, session):
 # Built-ins are admin-only, and cloned rather than edited
 # --------------------------------------------------------------------------- #
 def _builtin_id(session):
-    return session.query(RuleSet).filter_by(team_id=None).one().id
+    return session.query(RuleSet).filter_by(team_id=None, name=BUILTIN_RULESET_NAME).one().id
 
 
 def test_analyst_cannot_edit_a_builtin(app, client, session):

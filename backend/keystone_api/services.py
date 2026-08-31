@@ -207,10 +207,50 @@ def pinned_rule_set_versions(session: Session, analysis_id: int) -> list[RuleSet
     return [v for v, _ in rows]
 
 
+def upsert_builtin_ruleset(
+    session: Session,
+    name: str,
+    content: str,
+    *,
+    description: str | None = None,
+    languages: list[str] | None = None,
+    notes: str | None = None,
+) -> RuleSet | None:
+    """Create-or-update a system built-in (`team_id IS NULL`) from shipped content.
+
+    Idempotent and content-aware: identical content is a no-op, changed content
+    appends a new version. Returns the rule set, or None if the content will not
+    validate — a bad shipped file must not abort a boot."""
+    rs = session.query(RuleSet).filter_by(name=name, team_id=None).first()
+    if rs is None:
+        rs = RuleSet(
+            team_id=None,
+            name=name,
+            description=description,
+            languages=languages,
+            is_builtin=True,
+        )
+        session.add(rs)
+        session.flush()
+    else:
+        # Let a re-vendor correct the blurb without touching version history.
+        if description is not None:
+            rs.description = description
+        if languages is not None:
+            rs.languages = languages
+
+    try:
+        add_rule_set_version(session, rs, content, notes=notes)
+    except RulesetError as e:
+        log.warning("built-in ruleset %r failed validation: %s", name, e)
+        return None
+    return rs
+
+
 def ensure_builtin_rulesets(session: Session) -> RuleSet | None:
-    """Seed the shipped ruleset as the system built-in. Idempotent, and content-
-    aware: a shipped rule change on the next deploy appends v2 rather than being
-    ignored or duplicating the ruleset.
+    """Seed the shipped ruleset as the system built-in and return it (it is the
+    deployment default). Idempotent, and content-aware: a shipped rule change on
+    the next deploy appends v2 rather than being ignored or duplicating the set.
 
     Seeding lives here, not in the Alembic migration, so a missing or malformed
     rules file logs a warning instead of wedging a deployment mid-migration."""
@@ -220,27 +260,42 @@ def ensure_builtin_rulesets(session: Session) -> RuleSet | None:
         log.warning("built-in ruleset not seeded — cannot read %s: %s", BUILTIN_RULESET_PATH, e)
         return None
 
-    rs = session.query(RuleSet).filter_by(name=BUILTIN_RULESET_NAME, team_id=None).first()
-    if rs is None:
-        rs = RuleSet(
-            team_id=None,
-            name=BUILTIN_RULESET_NAME,
-            description=(
-                "Vulnerability-research rules for Ghidra-decompiled C, shipped with "
-                "Keystone. Clone it into your team to customize."
-            ),
-            languages=["c"],
-            is_builtin=True,
-        )
-        session.add(rs)
-        session.flush()
+    rs = upsert_builtin_ruleset(
+        session,
+        BUILTIN_RULESET_NAME,
+        content,
+        description=(
+            "Vulnerability-research rules for Ghidra-decompiled C, shipped with "
+            "Keystone. Clone it into your team to customize."
+        ),
+        languages=["c"],
+        notes="shipped with Keystone",
+    )
+    # A validation failure must not lose the deployment default: the row exists
+    # either way, so look it up rather than propagating the None.
+    return rs or session.query(RuleSet).filter_by(name=BUILTIN_RULESET_NAME, team_id=None).first()
 
-    try:
-        add_rule_set_version(session, rs, content, notes="shipped with Keystone")
-    except RulesetError as e:
-        log.warning("built-in ruleset %s failed validation: %s", BUILTIN_RULESET_PATH, e)
-        return rs
-    return rs
+
+def ensure_vendored_rulesets(session: Session) -> list[RuleSet]:
+    """Seed the vendored third-party rule tree (0xdea) as grouped built-ins.
+
+    The grouping lives in `rule_import.GROUPS`; this only persists it. Idempotent
+    by content hash, so re-vendoring an unchanged tree costs one hash per group and
+    a changed rule appends a version to just the group that carries it."""
+    from .rule_import import build_groups
+
+    seeded: list[RuleSet] = []
+    for group, content, count in build_groups():
+        rs = upsert_builtin_ruleset(
+            session,
+            group.name,
+            content,
+            description=group.description,
+            notes=f"vendored from 0xdea/semgrep-rules ({count} rules)",
+        )
+        if rs is not None:
+            seeded.append(rs)
+    return seeded
 
 
 def bootstrap(session: Session) -> dict:
@@ -250,6 +305,7 @@ def bootstrap(session: Session) -> dict:
     cfg = get_settings()
 
     builtin = ensure_builtin_rulesets(session)
+    ensure_vendored_rulesets(session)
     # Point the deployment default at the built-in on first boot only — never
     # overwrite an admin's later choice.
     if builtin is not None and sysset.default_rule_set_id is None:
