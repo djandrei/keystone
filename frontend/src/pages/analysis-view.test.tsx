@@ -162,3 +162,56 @@ it("shows no rule-set line on an analysis that pinned none", async () => {
   await screen.findByText(/Analysis #15/);
   expect(screen.queryByText("Rule sets:")).not.toBeInTheDocument();
 });
+
+it("the rule picker ranks by severity, not volume, and marks the default", async () => {
+  server.use(
+    http.get("/api/analyses/16", () =>
+      HttpResponse.json({
+        id: 16, team_id: 1, binary_id: 1, mode: "vr", status: "running", model: "m",
+        params: null, created_by: 1, created_at: null, started_at: null, finished_at: null, error: null,
+        progress: {
+          events: [
+            {
+              type: "needs_input",
+              step: "rule_pick",
+              data: {
+                classes: { typos: 33, "integer-truncation": 4 },
+                class_summary: [
+                  { rule: "integer-truncation", count: 4, severity: "WARNING" },
+                  { rule: "typos", count: 33, severity: "INFO" },
+                ],
+                auto: "integer-truncation",
+              },
+            },
+          ],
+        },
+      }),
+    ),
+  );
+  renderAt(16);
+  const buttons = await screen.findAllByRole("button", { name: /typos|integer-truncation/ });
+  // the WARNING class is offered first even though `typos` has 8x the hits
+  expect(buttons[0]).toHaveTextContent("integer-truncation");
+  expect(buttons[0]).toHaveTextContent("WARNING");
+  expect(buttons[0]).toHaveTextContent("default");
+  expect(buttons[1]).toHaveTextContent("typos");
+});
+
+it("falls back to count ordering for an analysis with no class summary", async () => {
+  server.use(
+    http.get("/api/analyses/17", () =>
+      HttpResponse.json({
+        id: 17, team_id: 1, binary_id: 1, mode: "vr", status: "running", model: "m",
+        params: null, created_by: 1, created_at: null, started_at: null, finished_at: null, error: null,
+        progress: {
+          events: [
+            { type: "needs_input", step: "rule_pick", data: { classes: { small: 1, big: 9 } } },
+          ],
+        },
+      }),
+    ),
+  );
+  renderAt(17);
+  const buttons = await screen.findAllByRole("button", { name: /small|big/ });
+  expect(buttons[0]).toHaveTextContent("big");
+});

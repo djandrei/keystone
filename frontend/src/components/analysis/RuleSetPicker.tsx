@@ -100,14 +100,24 @@ export function RuleSetPicker({
           </ul>
         )}
 
-        <label className="mt-3 flex items-center gap-2 text-sm text-fg-muted">
-          <input
-            type="checkbox"
-            checked={interactive}
-            onChange={(e) => setInteractive(e.target.checked)}
-          />
-          Pause to pick a rule class after the scan
-        </label>
+        <div className="mt-3">
+          <label className="flex items-center gap-2 text-sm text-fg-muted">
+            <input
+              type="checkbox"
+              checked={interactive}
+              onChange={(e) => setInteractive(e.target.checked)}
+            />
+            Let me choose which finding class to triage
+          </label>
+          {/* The scan always narrows to one class — this only decides who picks
+              it. Saying so stops the box reading as "narrow vs. don't narrow". */}
+          <p className="mt-1 pl-6 text-xs text-fg-muted">
+            {interactive
+              ? "The run will pause after the scan and show what it found."
+              : "The highest-severity class is triaged automatically."}{" "}
+            Only the chosen class goes to the model; other findings are counted but not triaged.
+          </p>
+        </div>
 
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={onCancel}>

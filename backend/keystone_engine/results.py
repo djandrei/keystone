@@ -24,6 +24,9 @@ class VRFinding(BaseModel):
     file: str | None = None
     line: int | None = None
     semgrep_message: str | None = None
+    # The rule's declared severity (ERROR/WARNING/INFO). Used to rank rule classes
+    # for triage; not persisted — it is a property of the rule, not the finding.
+    severity: str | None = None
     classification: str | None = None  # true_positive | false_positive | needs_review
     risk_level: str | None = None  # critical | high | medium | low | informational
     cwe_id: str | None = None

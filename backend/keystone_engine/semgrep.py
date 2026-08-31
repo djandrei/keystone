@@ -94,6 +94,9 @@ def parse_semgrep(raw: dict) -> list[VRFinding]:
                 file=r.get("path"),
                 line=start.get("line"),
                 semgrep_message=extra.get("message"),
+                # The rule's own declared severity — the only signal the engine has
+                # about how much a class is worth spending LLM budget on.
+                severity=extra.get("severity"),
                 # None unless the rule came through `rulesets.materialize`.
                 rule_set_version_id=rule_set_version_of(check_id),
             )
@@ -119,3 +122,49 @@ def group_by_rule_class(findings: list[VRFinding]) -> dict[str, list[VRFinding]]
     for f in findings:
         groups[rule_class(f.rule or "unknown")].append(f)
     return dict(groups)
+
+
+# Semgrep's declared severities, ranked. Anything unrecognized sorts lowest.
+SEVERITY_RANK: dict[str, int] = {"ERROR": 3, "WARNING": 2, "INFO": 1}
+
+
+def class_severity(findings: list[VRFinding]) -> int:
+    """The highest severity any rule in this class declared."""
+    return max((SEVERITY_RANK.get((f.severity or "").upper(), 0) for f in findings), default=0)
+
+
+def rank_rule_classes(groups: dict[str, list[VRFinding]]) -> list[str]:
+    """Rule classes worth triaging first: by highest declared severity, then by
+    volume.
+
+    Ranking by count alone lets the noisiest rules win, which is wrong once broad
+    recon rules are in the library — on a 114-function decompiled corpus, `typos`
+    and `bad-words` (both INFO) outnumbered `integer-truncation` (WARNING, and the
+    actual CVE class) by ten to one. Severity is a property of the rule its author
+    declared, so it is the honest tiebreaker the engine has.
+    """
+    return sorted(
+        groups,
+        key=lambda k: (class_severity(groups[k]), len(groups[k]), k),
+        reverse=True,
+    )
+
+
+def pick_rule_class(groups: dict[str, list[VRFinding]]) -> str | None:
+    """The class to triage when nobody chooses one."""
+    ranked = rank_rule_classes(groups)
+    return ranked[0] if ranked else None
+
+
+def rule_class_summary(groups: dict[str, list[VRFinding]]) -> list[dict]:
+    """Per-class `{rule, count, severity}` in ranked order — what the interactive
+    picker is shown, so the human sees the same ordering the auto-pick would use."""
+    inverse = {v: k for k, v in SEVERITY_RANK.items()}
+    return [
+        {
+            "rule": name,
+            "count": len(groups[name]),
+            "severity": inverse.get(class_severity(groups[name])),
+        }
+        for name in rank_rule_classes(groups)
+    ]

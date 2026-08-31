@@ -325,7 +325,7 @@ it("the rule-class pause can be turned off before starting", async () => {
   renderPage();
 
   await userEvent.click(await screen.findByText("Run VR"));
-  await userEvent.click(await screen.findByLabelText("Pause to pick a rule class after the scan"));
+  await userEvent.click(await screen.findByLabelText("Let me choose which finding class to triage"));
   await userEvent.click(screen.getByText("Start analysis"));
 
   await waitFor(() => expect(started).not.toBeNull());
@@ -364,4 +364,23 @@ it("credits the rule author in the Run VR picker", async () => {
   // the built-in fixture carries a credit; the team one does not
   expect(screen.getByText("Marco Ivaldi (raptor)")).toBeInTheDocument();
   expect(screen.getAllByText(/Rules by/)).toHaveLength(1);
+});
+
+it("the pre-scan checkbox says who picks the class, not whether to narrow", async () => {
+  setAccess("access-1");
+  let started: Record<string, unknown> | null = null;
+  server.use(...vrHandlers((b) => (started = b)));
+  // nothing should start while the analyst is still reading the options
+  renderPage();
+
+  await userEvent.click(await screen.findByText("Run VR"));
+  const box = await screen.findByLabelText("Let me choose which finding class to triage");
+  expect(box).toBeChecked();
+  expect(screen.getByText(/pause after the scan/i)).toBeInTheDocument();
+  // and it is honest that the scan narrows either way
+  expect(screen.getByText(/other findings are counted but not triaged/i)).toBeInTheDocument();
+
+  await userEvent.click(box);
+  expect(screen.getByText(/highest-severity class is triaged automatically/i)).toBeInTheDocument();
+  expect(started).toBeNull();
 });

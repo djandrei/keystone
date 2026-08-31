@@ -82,7 +82,11 @@ def _resolve_semgrep_configs(session, analysis_id: int) -> str | list[str]:
 
 
 def _make_rule_resolver(analysis_id: int, timeout: int = 300, interval: int = 2):
-    """Block until the user POSTs a rule selection (Redis key), else auto-pick."""
+    """Block until the user POSTs a rule selection (Redis key).
+
+    Returns None on timeout rather than guessing: choosing the fallback belongs to
+    the pipeline, which ranks classes by severity, and duplicating that here would
+    let an unattended run and a timed-out one disagree."""
 
     def resolve(counts: dict) -> str | None:
         r = _redis()
@@ -94,7 +98,12 @@ def _make_rule_resolver(analysis_id: int, timeout: int = 300, interval: int = 2)
                 return val.decode() if isinstance(val, bytes) else val
             time.sleep(interval)
             waited += interval
-        return max(counts, key=lambda k: counts[k]) if counts else None
+        logging.getLogger("keystone.worker").info(
+            "analysis %s: no rule class chosen in %ss — falling back to the ranked default",
+            analysis_id,
+            timeout,
+        )
+        return None
 
     return resolve
 
@@ -146,6 +155,13 @@ def _fake_vr_pipeline(analysis_id: int, params: dict, filename: str | None = Non
 
     def gen(_a):
         counts = {"kernel-integer-wraparound": 2, "format-string": 1}
+        # Mirrors the real pipeline's ranked default: severity first, so the
+        # ERROR class wins even though both have fewer hits than a noisy one would.
+        summary = [
+            {"rule": "kernel-integer-wraparound", "count": 2, "severity": "ERROR"},
+            {"rule": "format-string", "count": 1, "severity": "WARNING"},
+        ]
+        auto = summary[0]["rule"]
         yield ProgressEvent.step_start("decompile", 1)
         yield ProgressEvent.step_finish("decompile", 2, count=4)
         yield ProgressEvent.step_start("semgrep", 3)
@@ -155,11 +171,14 @@ def _fake_vr_pipeline(analysis_id: int, params: dict, filename: str | None = Non
             chosen = params["rule"]
         elif params.get("interactive"):
             yield ProgressEvent(
-                type=EventType.needs_input, seq=6, step="rule_pick", data={"classes": counts}
+                type=EventType.needs_input,
+                seq=6,
+                step="rule_pick",
+                data={"classes": counts, "class_summary": summary, "auto": auto},
             )
-            chosen = _make_rule_resolver(analysis_id)(counts)
+            chosen = _make_rule_resolver(analysis_id)(counts) or auto
         else:
-            chosen = max(counts, key=lambda k: counts[k])
+            chosen = auto
         yield ProgressEvent.step_finish("rule_pick", 7, rule=chosen, selected=2)
         yield ProgressEvent.security(_fake_injection_report(filename), 8)
         yield ProgressEvent.step_start("triage", 9)

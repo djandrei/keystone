@@ -141,3 +141,72 @@ def test_vr_pipeline_interactive_rule_resolver(tmp_path):
     assert any(e.type is ET.needs_input and e.step == "rule_pick" for e in events)
     assert seen["counts"] == {"integer-overflow": 2, "format-string": 1}
     assert len(findings) == 1 and findings[0].rule.endswith("format-string")
+
+
+# --------------------------------------------------------------------------- #
+# Who picks the rule class, and what happens when nobody does.
+# --------------------------------------------------------------------------- #
+def _severity_runner(_dir, _cfg):
+    """A scan where the noisiest class is the least severe — the ksthunk shape."""
+
+    def hit(check_id, sev, line):
+        return {
+            "check_id": check_id,
+            "path": "/d/f.c",
+            "start": {"line": line},
+            "extra": {"message": "m", "severity": sev},
+        }
+
+    return {
+        "results": [hit("typos", "INFO", i) for i in range(20)]
+        + [hit("integer-truncation", "WARNING", i) for i in range(3)]
+    }
+
+
+def _run(tmp_path, **kw):
+    client = GhidraMcpClient(transport=FakeMcp())
+    gen = vr_path.run(
+        BinaryRef(program="p", sha256="s", filename="f"),
+        client,
+        base_dir=str(tmp_path),
+        semgrep_runner=_severity_runner,
+        triage_agent=TriageStub(),
+        reachability_agent=ReachStub(),
+        **kw,
+    )
+    return _drive(gen)
+
+
+def test_auto_pick_prefers_severity_over_volume(tmp_path):
+    """Unattended, the run must not spend its whole budget on 20 INFO typos."""
+    events, (findings, _report) = _run(tmp_path)
+    picked = next(e for e in events if e.step == "rule_pick" and e.type.value == "step_finish")
+    assert picked.data["rule"] == "integer-truncation"
+    assert picked.data["selected"] == 3
+    assert len(findings) == 3
+
+
+def test_a_resolver_timeout_lands_on_the_same_ranked_default(tmp_path):
+    """The resolver returning None (nobody answered) must not fall back to the
+    largest class — the pipeline owns the default so both paths agree."""
+    events, (findings, _report) = _run(tmp_path, rule_resolver=lambda counts: None)
+    picked = next(e for e in events if e.step == "rule_pick" and e.type.value == "step_finish")
+    assert picked.data["rule"] == "integer-truncation"
+
+
+def test_the_needs_input_event_carries_the_ranked_summary(tmp_path):
+    """The human picker is shown the same ordering the auto-pick would use."""
+    events, _ = _run(tmp_path, rule_resolver=lambda counts: "typos")
+    ask = next(e for e in events if e.type.value == "needs_input")
+    summary = ask.data["class_summary"]
+    assert [r["rule"] for r in summary] == ["integer-truncation", "typos"]
+    assert summary[0]["severity"] == "WARNING"
+    assert ask.data["auto"] == "integer-truncation"
+    # counts are still there for older clients
+    assert ask.data["classes"] == {"typos": 20, "integer-truncation": 3}
+
+
+def test_an_explicit_choice_still_wins(tmp_path):
+    """Ranking is only the default — the analyst overrides it."""
+    _events, (findings, _report) = _run(tmp_path, rule_resolver=lambda counts: "typos")
+    assert len(findings) == 20

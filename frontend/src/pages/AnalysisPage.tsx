@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StepsPanel } from "@/components/analysis/StepsPanel";
 import { StatusPill } from "@/components/analysis/StatusPill";
 import { ReportView } from "@/components/analysis/ReportView";
-import { RulePicker } from "@/components/analysis/RulePicker";
+import { RulePicker, type RuleClassSummary } from "@/components/analysis/RulePicker";
 import { FindingsView } from "@/components/analysis/FindingsView";
 import { ExportBar } from "@/components/analysis/ExportBar";
 import { SecurityBanner } from "@/components/analysis/SecurityBanner";
@@ -106,6 +106,8 @@ export function AnalysisPage() {
       {needsInput && !rulePicked && (
         <RulePicker
           classes={(needsInput.data?.classes as Record<string, number>) ?? {}}
+          summary={needsInput.data?.class_summary as RuleClassSummary[] | undefined}
+          auto={(needsInput.data?.auto as string | null) ?? null}
           pending={selectRule.isPending}
           onPick={(rule) => selectRule.mutate(rule)}
         />

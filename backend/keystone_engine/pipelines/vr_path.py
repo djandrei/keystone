@@ -19,6 +19,8 @@ from keystone_engine.security import detect_injection
 from keystone_engine.semgrep import (
     decompile_program_to_dir,
     group_by_rule_class,
+    pick_rule_class,
+    rule_class_summary,
     run_semgrep,
 )
 from keystone_engine.signatures.reachability import assess_reachability, make_reachability_agent
@@ -85,17 +87,26 @@ def run(
 
     yield ProgressEvent.step_start("rule_pick", seq.next())
     counts = {k: len(v) for k, v in groups.items()}
+    summary = rule_class_summary(groups)
+    # The class to use when nobody picks one: highest declared severity first, not
+    # the largest bucket — see `semgrep.rank_rule_classes`.
+    auto = pick_rule_class(groups)
+
     if rule is not None:
         chosen = rule
     elif rule_resolver is not None and groups:
-        # pause for an interactive rule selection; the resolver blocks until the
-        # user answers (or times out to the auto-pick).
+        # Pause for an interactive selection. The resolver only waits for a human;
+        # deciding the fallback is this pipeline's job, so a timeout lands on the
+        # same ranked default an unattended run would have used.
         yield ProgressEvent(
-            type=EventType.needs_input, seq=seq.next(), step="rule_pick", data={"classes": counts}
+            type=EventType.needs_input,
+            seq=seq.next(),
+            step="rule_pick",
+            data={"classes": counts, "class_summary": summary, "auto": auto},
         )
-        chosen = rule_resolver(counts)
+        chosen = rule_resolver(counts) or auto
     else:
-        chosen = max(groups, key=lambda k: len(groups[k])) if groups else None
+        chosen = auto
     selected = groups.get(chosen, []) if chosen else []
     yield ProgressEvent.step_finish("rule_pick", seq.next(), rule=chosen, selected=len(selected))
 
