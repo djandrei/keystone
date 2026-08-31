@@ -225,3 +225,92 @@ def test_semgrep_accepts_every_vendored_rule():
         timeout=300,
     )
     assert proc.returncode == 0, proc.stderr[-2000:]
+
+
+# --------------------------------------------------------------------------- #
+# Attribution — the licences these ship under ask for the notice to travel with
+# the work, and it is owed regardless.
+# --------------------------------------------------------------------------- #
+def test_every_vendored_rule_names_the_same_author():
+    """The credit we display has to be the credit the rules actually carry."""
+    authors = {(r.get("metadata") or {}).get("author") for r in load_vendored_rules()}
+    assert authors == {"Marco Ivaldi <raptor@0xdeadbeef.info>"}
+
+
+def test_attribution_matches_the_vendored_tree():
+    from keystone_api.rule_import import ATTRIBUTION
+
+    assert ATTRIBUTION["author"] == "Marco Ivaldi (raptor)"
+    assert ATTRIBUTION["license"] == "MIT"
+    assert ATTRIBUTION["url"] == "https://github.com/0xdea/semgrep-rules"
+    # the pinned commit must agree with what UPSTREAM.md records
+    assert ATTRIBUTION["commit"] in (VENDOR_ROOT / "UPSTREAM.md").read_text()
+    assert ATTRIBUTION["license"] in (VENDOR_ROOT / "LICENSE").read_text()
+
+
+def test_seeded_groups_carry_the_credit(app, session):
+    from keystone_api.rule_import import ATTRIBUTION
+
+    services.bootstrap(session)
+    session.commit()
+    for group in GROUPS:
+        rs = session.query(RuleSet).filter_by(team_id=None, name=group.name).one()
+        assert rs.attribution == ATTRIBUTION, group.name
+
+
+def test_keystones_own_rule_set_claims_no_third_party_credit(app, session):
+    """Attribution is for imported work — ours must not borrow somebody's name."""
+    from keystone_api.models import BUILTIN_RULESET_NAME
+
+    services.bootstrap(session)
+    session.commit()
+    own = session.query(RuleSet).filter_by(team_id=None, name=BUILTIN_RULESET_NAME).one()
+    assert own.attribution is None
+
+
+def test_the_api_exposes_the_credit(app, client, session):
+    services.bootstrap(session)
+    session.commit()
+    tok = client.post(
+        "/auth/login", json={"username": "admin", "password": "change-me"}
+    ).get_json()["access_token"]
+    rows = client.get("/rule-sets", headers={"Authorization": f"Bearer {tok}"}).get_json()
+    memory = next(r for r in rows if "Memory safety" in r["name"])
+    assert memory["attribution"]["author"] == "Marco Ivaldi (raptor)"
+    assert memory["attribution"]["license"] == "MIT"
+    # a rule set authored here carries none
+    own = next(r for r in rows if r["name"] == "Decompiled C — VR defaults")
+    assert own["attribution"] is None
+
+
+def test_a_clone_keeps_the_original_credit(app, client, session):
+    """Forking somebody's rules into your team does not make them your rules."""
+    from keystone_api.models import Team
+
+    services.bootstrap(session)
+    team = session.query(Team).filter_by(name="Default").one()
+    session.commit()
+    tok = client.post(
+        "/auth/login", json={"username": "admin", "password": "change-me"}
+    ).get_json()["access_token"]
+    src = session.query(RuleSet).filter_by(team_id=None, name=GROUPS[0].name).one()
+    body = client.post(
+        f"/rule-sets/{src.id}/clone",
+        headers={"Authorization": f"Bearer {tok}"},
+        json={"team_id": team.id, "name": "our memory rules"},
+    ).get_json()
+    assert body["attribution"]["author"] == "Marco Ivaldi (raptor)"
+
+
+def test_a_revendor_can_correct_the_credit(app, session, monkeypatch):
+    """A new upstream commit changes the pin — the stored credit has to follow."""
+    services.bootstrap(session)
+    session.commit()
+    import keystone_api.rule_import as ri
+
+    monkeypatch.setattr(ri, "ATTRIBUTION", {**ri.ATTRIBUTION, "commit": "deadbeef" * 5})
+    services.ensure_vendored_rulesets(session)
+    session.commit()
+    rs = session.query(RuleSet).filter_by(team_id=None, name=GROUPS[0].name).one()
+    assert rs.attribution["commit"] == "deadbeef" * 5
+    assert len(rs.versions) == 1  # metadata only — no new version

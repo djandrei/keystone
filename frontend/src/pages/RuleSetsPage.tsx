@@ -3,6 +3,7 @@ import { isAxiosError } from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Archive, Copy, FileCode2, History, Plus } from "lucide-react";
 import { ruleSetsApi, type RuleSetRow, type ValidateResult } from "@/lib/ruleSetsApi";
+import { RuleSetCredit } from "@/components/RuleSetCredit";
 import { teamsApi } from "@/lib/adminApi";
 import { useAuth } from "@/auth/AuthContext";
 import { useTeam } from "@/team/TeamContext";
@@ -201,6 +202,7 @@ function RuleSetTable({
                       {r.description && (
                         <p className="mt-0.5 text-xs text-fg-muted">{r.description}</p>
                       )}
+                      <RuleSetCredit attribution={r.attribution} className="mt-0.5" />
                     </TD>
                     <TD className="text-fg-muted">{r.languages.join(", ") || "—"}</TD>
                     <TD className="text-fg-muted">{r.latest_version?.rule_count ?? 0}</TD>
@@ -304,6 +306,13 @@ function EditorModal({
               : "Saving appends a new version — earlier versions are never rewritten, so past analyses stay explainable."}
           </ModalDescription>
         </ModalHeader>
+
+        {detail?.attribution && (
+          <RuleSetCredit
+            attribution={detail.attribution}
+            className="-mt-2 mb-3 border-l-2 border-border pl-3"
+          />
+        )}
 
         <div className="flex flex-col gap-3">
           {isNew && (

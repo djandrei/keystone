@@ -15,6 +15,16 @@ export interface RuleSetVersionRow {
   content?: string;
 }
 
+/** Who wrote an imported rule set's rules, under what licence, and where from.
+ *  Null for rule sets authored in Keystone. Credit is shown wherever the rule set
+ *  appears — the licences these ship under ask for it, and it is owed anyway. */
+export interface RuleSetAttribution {
+  author: string;
+  license?: string;
+  url?: string;
+  commit?: string;
+}
+
 export interface RuleSetRow {
   id: number;
   /** null => a system built-in, readable by every team and writable only by admins. */
@@ -23,6 +33,7 @@ export interface RuleSetRow {
   description: string | null;
   languages: string[];
   is_builtin: boolean;
+  attribution: RuleSetAttribution | null;
   archived: boolean;
   created_by: number | null;
   created_at: string | null;

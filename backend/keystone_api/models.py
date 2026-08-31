@@ -314,6 +314,11 @@ class RuleSet(Base):
     description: Mapped[str | None] = mapped_column(Text)
     languages: Mapped[list | None] = mapped_column(JsonB)  # ["c"] — picker filter
     is_builtin: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Who wrote these rules, under what licence, and where they came from:
+    # {author, license, url, commit}. Set for imported rule sets, NULL for ones
+    # authored here. Credit is data, not prose in the description, so it survives
+    # an edit and can be rendered wherever the rule set appears.
+    attribution: Mapped[dict | None] = mapped_column(JsonB)
     # Archived rulesets stay pinnable by history but drop out of the pickers.
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))

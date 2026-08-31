@@ -47,6 +47,7 @@ const BUILTIN = {
   description: "Ships with Keystone",
   languages: ["c"],
   is_builtin: true,
+    attribution: { author: "Marco Ivaldi (raptor)", license: "MIT", url: "https://github.com/0xdea/semgrep-rules", commit: "33155497b25b4639193db016962af2df46290b10" },
   archived: false,
   created_by: null,
   created_at: null,
@@ -59,7 +60,7 @@ const TEAM_RS = {
   name: "firmware rules",
   description: null,
   languages: ["c"],
-  is_builtin: false,
+  is_builtin: false, attribution: null,
   archived: false,
   created_by: 1,
   created_at: null,
@@ -239,4 +240,38 @@ it("archives a rule set", async () => {
 
   await userEvent.click(await screen.findByText("Archive"));
   await waitFor(() => expect(patched).toEqual({ archived: true }));
+});
+
+it("credits the author of imported rules in the library", async () => {
+  setAccess("access-1");
+  server.use(...baseHandlers());
+  renderPage();
+
+  await screen.findByText("Decompiled C — VR defaults");
+  expect(screen.getByText("Marco Ivaldi (raptor)")).toBeInTheDocument();
+  expect(screen.getByText(/MIT/)).toBeInTheDocument();
+  const link = screen.getByRole("link", { name: /github.com\/0xdea\/semgrep-rules/ });
+  expect(link).toHaveAttribute("href", "https://github.com/0xdea/semgrep-rules");
+  // opened safely, and the pinned commit is shown short
+  expect(link).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
+  expect(screen.getByText(/3315549/)).toBeInTheDocument();
+});
+
+it("shows no byline on a rule set authored here", async () => {
+  setAccess("access-1");
+  server.use(
+    http.get("/api/teams", () => HttpResponse.json(TEAMS)),
+    http.get("/api/rule-sets", () => HttpResponse.json([TEAM_RS])),
+  );
+  renderPage();
+  await screen.findByText("firmware rules");
+  expect(screen.queryByText(/Rules by/)).not.toBeInTheDocument();
+});
+
+it("does not put the author's email on screen", async () => {
+  setAccess("access-1");
+  server.use(...baseHandlers());
+  renderPage();
+  await screen.findByText("Decompiled C — VR defaults");
+  expect(document.body.textContent).not.toContain("@0xdeadbeef.info");
 });

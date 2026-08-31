@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ruleSetsApi } from "@/lib/ruleSetsApi";
+import { RuleSetCredit } from "@/components/RuleSetCredit";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -92,6 +93,8 @@ export function RuleSetPicker({
                     {r.latest_version?.rule_count ?? 0} rules
                   </span>
                 </label>
+                {/* credit at the moment the work is actually put to use */}
+                <RuleSetCredit attribution={r.attribution} className="pl-8 pb-1" />
               </li>
             ))}
           </ul>

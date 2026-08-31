@@ -215,6 +215,7 @@ def upsert_builtin_ruleset(
     description: str | None = None,
     languages: list[str] | None = None,
     notes: str | None = None,
+    attribution: dict | None = None,
 ) -> RuleSet | None:
     """Create-or-update a system built-in (`team_id IS NULL`) from shipped content.
 
@@ -229,15 +230,19 @@ def upsert_builtin_ruleset(
             description=description,
             languages=languages,
             is_builtin=True,
+            attribution=attribution,
         )
         session.add(rs)
         session.flush()
     else:
-        # Let a re-vendor correct the blurb without touching version history.
+        # Let a re-vendor correct the blurb and the credit without touching
+        # version history — a new upstream commit changes the attribution too.
         if description is not None:
             rs.description = description
         if languages is not None:
             rs.languages = languages
+        if attribution is not None:
+            rs.attribution = attribution
 
     try:
         add_rule_set_version(session, rs, content, notes=notes)
@@ -282,7 +287,7 @@ def ensure_vendored_rulesets(session: Session) -> list[RuleSet]:
     The grouping lives in `rule_import.GROUPS`; this only persists it. Idempotent
     by content hash, so re-vendoring an unchanged tree costs one hash per group and
     a changed rule appends a version to just the group that carries it."""
-    from .rule_import import build_groups
+    from .rule_import import ATTRIBUTION, build_groups
 
     seeded: list[RuleSet] = []
     for group, content, count in build_groups():
@@ -292,6 +297,7 @@ def ensure_vendored_rulesets(session: Session) -> list[RuleSet]:
             content,
             description=group.description,
             notes=f"vendored from 0xdea/semgrep-rules ({count} rules)",
+            attribution=ATTRIBUTION,
         )
         if rs is not None:
             seeded.append(rs)

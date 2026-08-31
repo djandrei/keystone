@@ -120,6 +120,12 @@ The last is separated because it is high-volume by design — on a 114-function
 decompiled corpus those three rules produced 87 of 92 findings. Opt into it when
 orienting on an unfamiliar binary, not when hunting a specific bug class.
 
+**Credit is displayed, not just filed.** Each imported rule set carries an
+`attribution` record — author, licence, upstream URL and pinned commit — shown as a
+byline in the library and in the Run VR picker, and copied onto a clone (forking
+somebody's rules does not make them yours). Rule sets authored in Keystone carry
+none.
+
 Nothing is fetched at runtime: the tree is vendored, the grouping lives in
 `keystone_api/rule_import.py`, and seeding goes through the same idempotent
 `upsert_builtin_ruleset` path. To move to a newer upstream commit, follow

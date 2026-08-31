@@ -88,6 +88,8 @@ def _public(rs: RuleSet, latest: RuleSetVersion | None = None) -> dict:
         "description": rs.description,
         "languages": rs.languages or [],
         "is_builtin": rs.is_builtin,
+        # {author, license, url, commit} for imported rules; None for own work.
+        "attribution": rs.attribution,
         "archived": rs.archived_at is not None,
         "created_by": rs.created_by,
         "created_at": rs.created_at.isoformat() if rs.created_at else None,
@@ -386,6 +388,8 @@ def clone_rule_set(rule_set_id: int):  # type: ignore[no-untyped-def]
         description=rs.description,
         languages=rs.languages,
         is_builtin=False,
+        # A fork of somebody's rules is still their work — the credit travels.
+        attribution=rs.attribution,
         created_by=g.principal.user.id,
     )
     db.add(clone)

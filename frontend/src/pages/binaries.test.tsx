@@ -36,7 +36,8 @@ const SETTINGS = {
 const RULE_SETS = [
   {
     id: 3, team_id: null, name: "Decompiled C — VR defaults", description: null, languages: ["c"],
-    is_builtin: true, archived: false, created_by: null, created_at: null,
+    is_builtin: true,
+    attribution: { author: "Marco Ivaldi (raptor)", license: "MIT", url: "https://github.com/0xdea/semgrep-rules", commit: "33155497b25b4639193db016962af2df46290b10" }, archived: false, created_by: null, created_at: null,
     latest_version: {
       id: 30, version_no: 1, content_sha256: "x", rule_ids: ["dangerous-copy"], rule_count: 1,
       notes: null, security: null, created_by: null, created_at: null,
@@ -247,7 +248,7 @@ const RULE_SETS_TWO = [
   RULE_SETS[0],
   {
     id: 7, team_id: 1, name: "firmware rules", description: null, languages: ["c"],
-    is_builtin: false, archived: false, created_by: 1, created_at: null,
+    is_builtin: false, attribution: null, archived: false, created_by: 1, created_at: null,
     latest_version: {
       id: 70, version_no: 2, content_sha256: "y", rule_ids: ["a", "b"], rule_count: 2,
       notes: null, security: null, created_by: 1, created_at: null,
@@ -351,4 +352,16 @@ it("cannot start with nothing selected", async () => {
   await userEvent.click(await screen.findByText("Run VR"));
   expect(await screen.findByText(/No rule sets available/)).toBeInTheDocument();
   expect(screen.getByText("Start analysis")).toBeDisabled();
+});
+
+it("credits the rule author in the Run VR picker", async () => {
+  setAccess("access-1");
+  server.use(...vrHandlers(() => {}));
+  renderPage();
+
+  await userEvent.click(await screen.findByText("Run VR"));
+  await screen.findByLabelText("Decompiled C — VR defaults");
+  // the built-in fixture carries a credit; the team one does not
+  expect(screen.getByText("Marco Ivaldi (raptor)")).toBeInTheDocument();
+  expect(screen.getAllByText(/Rules by/)).toHaveLength(1);
 });

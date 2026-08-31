@@ -48,7 +48,8 @@ describe("accessibility (axe)", () => {
         HttpResponse.json([
           {
             id: 3, team_id: null, name: "Decompiled C", description: null, languages: ["c"],
-            is_builtin: true, archived: false, created_by: null, created_at: null,
+            is_builtin: true,
+    attribution: { author: "Marco Ivaldi (raptor)", license: "MIT", url: "https://github.com/0xdea/semgrep-rules", commit: "33155497b25b4639193db016962af2df46290b10" }, archived: false, created_by: null, created_at: null,
             latest_version: {
               id: 30, version_no: 1, content_sha256: "x", rule_ids: ["a"], rule_count: 1,
               notes: null, security: null, created_by: null, created_at: null,

@@ -30,6 +30,19 @@ log = logging.getLogger("keystone.rule_import")
 
 VENDOR_ROOT = Path(__file__).resolve().parent.parent / "semgrep-rules" / "0xdea"
 
+# Credit for the vendored tree, carried onto every rule set built from it and shown
+# wherever that rule set appears. MIT asks that the notice travel with the work;
+# these are somebody's rules and the app should say so. The upstream `metadata.author`
+# on all 50 rules is "Marco Ivaldi <raptor@0xdeadbeef.info>" — the email is left in
+# the vendored YAML and the LICENSE rather than put on screen; the repo link is the
+# more useful pointer.
+ATTRIBUTION: dict[str, str] = {
+    "author": "Marco Ivaldi (raptor)",
+    "license": "MIT",
+    "url": "https://github.com/0xdea/semgrep-rules",
+    "commit": "33155497b25b4639193db016962af2df46290b10",
+}
+
 # Rules upstream files under a security class but which, on decompiled code, behave
 # as broad recon rather than as vulnerability findings. Pulled out by id so the
 # grouping below can stay "upstream's class, minus these".
