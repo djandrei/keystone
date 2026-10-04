@@ -22,6 +22,10 @@ Set strong values in `infra/.env` (never commit it):
 - `KEYSTONE_LLM_API_KEY` — the LLM endpoint key. **Deployment secret only** — never
   stored in the DB; the admin sets endpoint URL + default model at runtime.
 
+The API and worker refuse to start in production while `KEYSTONE_JWT_SECRET` or
+`KEYSTONE_ADMIN_PASSWORD` is empty or still a published default (the code's or
+`.env.example`'s); the error names the variable, never its value.
+
 ## 3. TLS certificate
 Drop a real cert at `infra/certs/{fullchain,privkey}.pem`, or for testing:
 ```bash

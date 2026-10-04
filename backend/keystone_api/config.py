@@ -9,7 +9,21 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Placeholders that are in the public source (the defaults below and
+# infra/.env.example). Production must not run on any of them.
+_PUBLIC_JWT_SECRETS = {
+    "dev-insecure-secret-change-me-in-production-0123456789",
+    "change-me-in-prod",
+}
+_PUBLIC_ADMIN_PASSWORDS = {"change-me"}
+
+
+class InsecureProductionConfig(RuntimeError):
+    """Raised instead of ValueError on purpose: pydantic wraps a ValueError in a
+    ValidationError whose text repeats the input values, secrets included."""
 
 
 class Settings(BaseSettings):
@@ -68,6 +82,24 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     # Optional separate key for the triage endpoint; blank -> reuse llm_api_key.
     triage_api_key: str = ""
+
+    @model_validator(mode="after")
+    def _refuse_public_secrets_in_production(self) -> Settings:
+        """Fail closed: a published secret would let anyone forge a JWT or log in
+        as the bootstrap admin. Names the variables, never their values."""
+        if self.env != "production":
+            return self
+        unset = []
+        if not self.jwt_secret or self.jwt_secret in _PUBLIC_JWT_SECRETS:
+            unset.append("KEYSTONE_JWT_SECRET")
+        if not self.admin_password or self.admin_password in _PUBLIC_ADMIN_PASSWORDS:
+            unset.append("KEYSTONE_ADMIN_PASSWORD")
+        if unset:
+            raise InsecureProductionConfig(
+                f"refusing to start in production with an empty or published default for "
+                f"{', '.join(unset)}; set a strong value in infra/.env"
+            )
+        return self
 
 
 @lru_cache
