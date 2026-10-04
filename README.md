@@ -1,9 +1,7 @@
 # Keystone
 
 Multi-user, self-hostable web application for **AI-assisted reverse engineering &
-vulnerability research**, built on `ghidra-headless-mcp`. See
-[`../docs/design.md`](../docs/design.md) and
-[`../docs/implementation-plan.md`](../docs/implementation-plan.md).
+vulnerability research**, built on `ghidra-headless-mcp`.
 
 **Status: Keystone v1 (M1–M7 complete).** Per-analysis Semgrep rule sets (M6) and
 model-suggested function names (M7) followed v1 — see their sections below.
@@ -166,8 +164,6 @@ Nothing is fetched at runtime: the tree is vendored, the grouping lives in
 `upsert_builtin_ruleset` path. To move to a newer upstream commit, follow
 `backend/semgrep-rules/0xdea/UPSTREAM.md` — a changed rule appends a version to
 just the group that carries it.
-
-Design and staging: [`../docs/rule-sets-plan.md`](../docs/rule-sets-plan.md).
 
 ## Function names
 
