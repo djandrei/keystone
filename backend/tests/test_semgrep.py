@@ -106,9 +106,7 @@ def test_the_default_runner_scans_with_the_real_semgrep(tmp_path):
     """Every other test injects a fake runner, which is how a worker image
     without Semgrep went unnoticed: VR would fail at its first scan. This one
     runs the real CLI with the shipped ruleset over a one-line strcpy."""
-    (tmp_path / "copy.c").write_text(
-        "void copy(char *dst, char *src) {\n  strcpy(dst, src);\n}\n"
-    )
+    (tmp_path / "copy.c").write_text("void copy(char *dst, char *src) {\n  strcpy(dst, src);\n}\n")
 
     findings = run_semgrep(tmp_path, str(SHIPPED_RULESET))
 
