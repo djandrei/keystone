@@ -19,6 +19,8 @@ _PUBLIC_JWT_SECRETS = {
     "change-me-in-prod",
 }
 _PUBLIC_ADMIN_PASSWORDS = {"change-me"}
+# RFC 7518 §3.2: an HS256 key must be at least the 256-bit hash output (32 bytes).
+_MIN_JWT_SECRET_LEN = 32
 
 
 class InsecureProductionConfig(RuntimeError):
@@ -85,19 +87,22 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _refuse_public_secrets_in_production(self) -> Settings:
-        """Fail closed: a published secret would let anyone forge a JWT or log in
-        as the bootstrap admin. Names the variables, never their values."""
+        """Fail closed: a published or short secret would let anyone forge a JWT
+        or log in as the bootstrap admin. Names the variables, never their values."""
         if self.env != "production":
             return self
-        unset = []
-        if not self.jwt_secret or self.jwt_secret in _PUBLIC_JWT_SECRETS:
-            unset.append("KEYSTONE_JWT_SECRET")
+        problems = []
+        if len(self.jwt_secret) < _MIN_JWT_SECRET_LEN or self.jwt_secret in _PUBLIC_JWT_SECRETS:
+            problems.append(
+                f"KEYSTONE_JWT_SECRET must be at least {_MIN_JWT_SECRET_LEN} characters "
+                f"and not a published default"
+            )
         if not self.admin_password or self.admin_password in _PUBLIC_ADMIN_PASSWORDS:
-            unset.append("KEYSTONE_ADMIN_PASSWORD")
-        if unset:
+            problems.append("KEYSTONE_ADMIN_PASSWORD must be set and not a published default")
+        if problems:
             raise InsecureProductionConfig(
-                f"refusing to start in production with an empty or published default for "
-                f"{', '.join(unset)}; set a strong value in infra/.env"
+                f"refusing to start in production: {'; '.join(problems)}. "
+                f"Set strong values in infra/.env"
             )
         return self
 

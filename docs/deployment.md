@@ -16,7 +16,8 @@ capable), nginx + TLS at the edge, persistent Postgres + S3 object storage
 cp infra/.env.example infra/.env
 ```
 Set strong values in `infra/.env` (never commit it):
-- `KEYSTONE_JWT_SECRET` — long random string (signs access tokens).
+- `KEYSTONE_JWT_SECRET` — long random string, at least 32 characters (signs access
+  tokens): `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`.
 - `POSTGRES_PASSWORD`, `KEYSTONE_S3_SECRET_KEY` (also the S3 store's root secret).
 - `KEYSTONE_ADMIN_PASSWORD` — first-run admin password (change immediately after).
 - `KEYSTONE_LLM_API_KEY` — the LLM endpoint key. **Deployment secret only** — never
@@ -24,7 +25,8 @@ Set strong values in `infra/.env` (never commit it):
 
 The API and worker refuse to start in production while `KEYSTONE_JWT_SECRET` or
 `KEYSTONE_ADMIN_PASSWORD` is empty or still a published default (the code's or
-`.env.example`'s); the error names the variable, never its value.
+`.env.example`'s), or while the JWT secret is shorter than 32 characters; the error
+names the variable, never its value.
 
 ## 3. TLS certificate
 Drop a real cert at `infra/certs/{fullchain,privkey}.pem`, or for testing:
