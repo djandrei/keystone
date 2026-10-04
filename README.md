@@ -5,7 +5,9 @@ vulnerability research**, built on `ghidra-headless-mcp`. See
 [`../docs/design.md`](../docs/design.md) and
 [`../docs/implementation-plan.md`](../docs/implementation-plan.md).
 
-**Status: Keystone v1 (M1–M5 complete).** A secure, observable, fully-tested and
+**Status: Keystone v1 (M1–M7 complete).** Per-analysis Semgrep rule sets (M6) and
+model-suggested function names (M7) followed v1 — see their sections below.
+A secure, observable, fully-tested and
 deployable multi-user app: JWT auth + API tokens, users/teams/RBAC, admin system-
 settings and the branded React shell; both analysis paths end-to-end (RE: upload ->
 async analysis -> live Steps -> report; VR: pick rule sets -> Semgrep -> interactive rule pick ->
@@ -48,9 +50,9 @@ boot (idempotent bootstrap); re-running never duplicates them.
 | http://localhost:8080/api | Backend REST API (Flask) |
 | http://localhost:8080/api/healthz | Liveness probe |
 | postgres:5432 | PostgreSQL 16 (internal) |
-| redis:6379 | Redis 7 (internal; jobs land in M2) |
+| redis:6379 | Redis 7 (internal; Celery job queue + progress pub/sub) |
 | minio:9000 | MinIO / S3 object storage (internal) |
-| ghidra-mcp:1341 | `ghidra-headless-mcp` (wired in M2) |
+| ghidra-mcp:1341 | `ghidra-headless-mcp` (the analysis engine's Ghidra backend) |
 
 ## Configuration
 
@@ -167,8 +169,8 @@ never fails an analysis — the run completes with `FUN_` addresses.
 
 ```bash
 make test          # backend (pytest) + frontend (vitest), both in-container
-make test-be       # backend only  — 32 tests
-make test-fe       # frontend only — 25 tests
+make test-be       # backend only  — pytest
+make test-fe       # frontend only — vitest
 make lint          # ruff/black/mypy + eslint/tsc
 ```
 
