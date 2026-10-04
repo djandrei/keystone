@@ -239,5 +239,12 @@ frontend/   React + TypeScript (Vite). Design system (Tailwind + Keystone tokens
 infra/      docker-compose.yml, nginx reverse proxy, .env.example, smoke.sh
 ```
 
-Built stage-by-stage per the implementation plan; each stage is test-gated and
-committed independently.
+Built stage by stage; each stage is test-gated and committed independently.
+
+## License
+
+Copyright 2026 Andrei Dimitrief-Jianu. Licensed under the
+[Apache License, Version 2.0](LICENSE).
+
+The vendored Semgrep rules in `backend/semgrep-rules/0xdea/` are third-party work
+under their own MIT licence, kept beside them in that directory.
