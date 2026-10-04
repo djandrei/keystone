@@ -89,9 +89,6 @@ if [ "$FRESH" = 1 ]; then
   $COMPOSE_ENGINE --profile engine down -v
 fi
 
-# --- shared LLM network (so backend/worker can reach the local OpenWebUI) -----
-docker network create keystone-llm >/dev/null 2>&1 || true
-
 # --- build + start the core services -----------------------------------------
 echo "==> building and starting the core stack"
 $COMPOSE up -d --build

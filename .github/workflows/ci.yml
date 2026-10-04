@@ -42,10 +42,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Bring up the stack (fake engine) and run Playwright
         run: |
-          # The stack's external pieces: the LLM network, and ghidra-headless-mcp's
-          # network and samples directory. The fake engine never calls Ghidra, so
-          # an empty network and directory are enough here.
-          docker network create keystone-llm
+          # The stack's external pieces: ghidra-headless-mcp's network and samples
+          # directory. The fake engine never calls Ghidra, so an empty network and
+          # directory are enough here.
           docker network create ghidra-headless-mcp
           mkdir -p ../ghidra-headless-mcp/samples
           docker compose -f infra/docker-compose.yml up -d --build

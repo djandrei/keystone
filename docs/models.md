@@ -4,6 +4,19 @@ Keystone talks to one OpenAI- or Anthropic-compatible endpoint per model, set by
 the admin under **Settings** (stored in `system_settings`; keys are deployment
 secrets in the environment, never the DB).
 
+The endpoint must be reachable from Keystone's containers. A hosted API needs
+nothing more. For a model served by **another container on the same host**,
+attach that container to Keystone's network and use its container name in the
+URL — `localhost` inside Keystone's containers is the container itself:
+
+```bash
+docker network connect keystone_default <llm-container>   # dev stack
+# then, in Settings: http://<llm-container>:<port>/...
+```
+
+The production stack's network is `keystone-prod_default`. Reconnect after the
+model's container is recreated.
+
 ## Analysis model (required)
 
 - **LLM endpoint URL** + **Default model** — used for the deep, agentic work: the

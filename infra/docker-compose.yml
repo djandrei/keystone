@@ -63,7 +63,6 @@ services:
     # /samples is ghidra-headless-mcp's samples directory, shared with it so the
     # path the worker hands to analyze_binary is the same file on both sides.
     volumes: ["../backend:/app", "${KEYSTONE_SAMPLES_DIR:-../../ghidra-headless-mcp/samples}:/samples"]
-    networks: [default, llm]
     expose: ["8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/readyz', timeout=5).status==200 else 1)"]
@@ -98,7 +97,7 @@ services:
     depends_on:
       redis: { condition: service_healthy }
     volumes: ["../backend:/app", "${KEYSTONE_SAMPLES_DIR:-../../ghidra-headless-mcp/samples}:/samples"]
-    networks: [default, llm, ghidra]
+    networks: [default, ghidra]
     command: ["celery", "-A", "worker.app", "worker", "--loglevel=info", "--concurrency=4"]
 
 volumes:
@@ -107,9 +106,6 @@ volumes:
 
 networks:
   default:
-  llm:
-    external: true
-    name: keystone-llm
   # ghidra-headless-mcp's compose network (it names it; start that stack first).
   ghidra:
     external: true
