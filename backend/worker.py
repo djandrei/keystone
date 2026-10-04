@@ -1,6 +1,6 @@
 """Celery entrypoint: `celery -A worker.app worker`.
 
-Wires the real adapters (engine pipeline + Ghidra import, MinIO persist, Redis
+Wires the real adapters (engine pipeline + Ghidra import, S3 persist, Redis
 publish/cancel) into the framework-free `run_analysis_core`."""
 
 from __future__ import annotations

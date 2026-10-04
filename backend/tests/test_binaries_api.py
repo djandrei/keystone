@@ -1,5 +1,5 @@
 """Stage 2.5: upload -> fingerprint -> store -> team-scoped row; dedup, scoping,
-sniffing, size cap. Uses an in-memory object store (no MinIO)."""
+sniffing, size cap. Uses an in-memory object store (no S3 server)."""
 
 from __future__ import annotations
 

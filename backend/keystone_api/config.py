@@ -25,8 +25,8 @@ class Settings(BaseSettings):
     # --- redis / jobs (M2) ---
     redis_url: str = "redis://redis:6379/0"
 
-    # --- object storage / MinIO (M2) ---
-    s3_endpoint: str = "http://minio:9000"
+    # --- object storage: S3 (VersityGW in compose) (M2) ---
+    s3_endpoint: str = "http://s3:7070"
     s3_bucket: str = "keystone"
     s3_access_key: str = "keystone"
     s3_secret_key: str = "keystone-dev-secret"

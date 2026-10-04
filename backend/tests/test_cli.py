@@ -116,3 +116,21 @@ def test_prune_yes_deletes(session):
     bid = _add_binary(size=10)
     assert cli.main(["prune-binaries", "--id", str(bid), "--yes"]) == 0
     assert _count(Binary) == 0
+
+
+def test_init_storage_creates_the_bucket(session, monkeypatch, capsys):
+    calls = []
+
+    class FakeS3:
+        def __init__(self, settings):
+            pass
+
+        def ensure_bucket(self):
+            calls.append(1)
+            return len(calls) == 1
+
+    monkeypatch.setattr("keystone_api.storage.S3ObjectStore", FakeS3)
+    assert cli.main(["init-storage"]) == 0
+    assert cli.main(["init-storage"]) == 0
+    out = capsys.readouterr().out
+    assert "created" in out and "already exists" in out

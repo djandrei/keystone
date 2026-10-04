@@ -1,4 +1,4 @@
-"""Management CLI: `python -m keystone_api.cli [bootstrap|seed|prune-binaries]`."""
+"""Management CLI: `python -m keystone_api.cli [bootstrap|seed|prune-binaries|init-storage]`."""
 
 from __future__ import annotations
 
@@ -81,8 +81,19 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if cmd == "prune-binaries":
         return _prune(argv[1:])
+    if cmd == "init-storage":
+        from .config import get_settings
+        from .storage import S3ObjectStore
 
-    print("usage: python -m keystone_api.cli [bootstrap|seed|prune-binaries]", file=sys.stderr)
+        bucket = get_settings().s3_bucket
+        created = S3ObjectStore(get_settings()).ensure_bucket()
+        print(f"bucket {bucket}: {'created' if created else 'already exists'}")
+        return 0
+
+    print(
+        "usage: python -m keystone_api.cli [bootstrap|seed|prune-binaries|init-storage]",
+        file=sys.stderr,
+    )
     return 2
 
 

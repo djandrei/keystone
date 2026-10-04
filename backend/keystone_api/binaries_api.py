@@ -1,6 +1,6 @@
 """Binary upload, storage and listing — team-scoped.
 
-Upload flow: read (capped) -> sha256 fingerprint -> content-addressed MinIO put
+Upload flow: read (capped) -> sha256 fingerprint -> content-addressed S3 put
 (dedup) -> magic-byte sniff -> best-effort write to the shared samples dir for
 later Ghidra import -> team-scoped `binaries` row (UNIQUE(team_id, sha256) dedups
 per team). Samples are NEVER executed."""

@@ -1,8 +1,8 @@
-"""Content-addressed object storage over S3/MinIO (boto3).
+"""Content-addressed object storage over S3 (boto3; VersityGW in compose).
 
 Keys are `binaries/{sha256}` so identical bytes dedupe to one object regardless
 of how many teams upload them. The store is injectable (app.config['OBJECT_STORE'])
-so tests use an in-memory fake and never need a live MinIO."""
+so tests use an in-memory fake and never need a live S3 server."""
 
 from __future__ import annotations
 
@@ -51,6 +51,22 @@ class S3ObjectStore:
     def delete(self, key: str) -> None:
         # S3 delete_object is idempotent — deleting a missing key is not an error.
         self._client.delete_object(Bucket=self._bucket, Key=key)
+
+    def ensure_bucket(self) -> bool:
+        """Create the bucket if it is missing; True if it was created.
+
+        Run once at stack start (`cli init-storage`). Any error other than
+        "no such bucket" -- wrong credentials, unreachable server -- propagates."""
+        from botocore.exceptions import ClientError
+
+        try:
+            self._client.head_bucket(Bucket=self._bucket)
+            return False
+        except ClientError as e:
+            if e.response["Error"]["Code"] not in ("404", "NoSuchBucket"):
+                raise
+        self._client.create_bucket(Bucket=self._bucket)
+        return True
 
 
 @lru_cache

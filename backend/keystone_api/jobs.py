@@ -3,7 +3,7 @@ and Redis publishes.
 
 `run_analysis_core` is deliberately framework-free and fully injectable so it unit-
 tests without Celery, Redis, Ghidra or an LLM. The Celery task in `worker.py`
-wires the real adapters (engine pipeline, MinIO persist, Redis publish/cancel)."""
+wires the real adapters (engine pipeline, S3 persist, Redis publish/cancel)."""
 
 from __future__ import annotations
 

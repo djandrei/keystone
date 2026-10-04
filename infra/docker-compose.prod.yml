@@ -29,27 +29,39 @@ services:
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 10s, timeout: 5s, retries: 10 }
     restart: unless-stopped
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
+  # S3 object store: VersityGW over a plain directory -- each object is a file
+  # under /data/<bucket>/. Its root credentials are the app's S3 keys.
+  s3:
+    image: versity/versitygw:v1.8.0
+    command: ["--quiet", "posix", "/data"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-keystone}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set a strong password}
-    volumes: [miniodata:/data]
+      ROOT_ACCESS_KEY: ${KEYSTONE_S3_ACCESS_KEY:-keystone}
+      ROOT_SECRET_KEY: ${KEYSTONE_S3_SECRET_KEY:?set a strong S3 secret}
+    volumes: [s3data:/data]
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "nc", "-z", "127.0.0.1", "7070"]
       interval: 10s
       timeout: 5s
       retries: 10
     restart: unless-stopped
 
-  minio-init:
-    image: minio/mc:latest
-    depends_on: { minio: { condition: service_healthy } }
-    entrypoint: >
-      /bin/sh -c "mc alias set k http://minio:9000 $${MINIO_ROOT_USER:-keystone} $${MINIO_ROOT_PASSWORD} &&
-                  mc mb -p k/$${KEYSTONE_S3_BUCKET:-keystone} || true"
-    env_file: [.env]
+  # Creates the bucket (idempotent), then exits; the backend waits for it.
+  s3-init:
+    build: { context: ../backend, target: prod }
+    <<: *backend-env
+    depends_on: { s3: { condition: service_healthy } }
+    command: ["python", "-m", "keystone_api.cli", "init-storage"]
+    restart: "no"
+
+  # backup.sh / restore.sh only (`compose run`); never started by `up`.
+  aws:
+    image: amazon/aws-cli:2.37.9
+    profiles: ["tools"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${KEYSTONE_S3_ACCESS_KEY:-keystone}
+      AWS_SECRET_ACCESS_KEY: ${KEYSTONE_S3_SECRET_KEY:?set a strong S3 secret}
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://s3:7070
 
   backend:
     build: { context: ../backend, target: prod }
@@ -57,7 +69,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
-      minio: { condition: service_healthy }
+      s3-init: { condition: service_completed_successfully }
     # ghidra-headless-mcp's samples directory, shared with it (see worker).
     volumes: ["${KEYSTONE_SAMPLES_DIR:-../../ghidra-headless-mcp/samples}:/samples"]
     expose: ["8000"]
@@ -94,7 +106,7 @@ services:
 
 volumes:
   pgdata:
-  miniodata:
+  s3data:
 
 networks:
   default:

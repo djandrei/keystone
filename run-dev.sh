@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Start Keystone in the development environment (Docker Compose).
 #
-# Brings up the core stack (postgres, redis, minio, backend, frontend, nginx),
+# Brings up the core stack (postgres, redis, s3, backend, frontend, nginx),
 # applies migrations, bootstraps the admin, and — unless --no-engine — starts the
 # analysis worker in fake-engine mode so uploads can actually be analyzed without
 # Ghidra/LLM/Semgrep. Everything runs in containers; no host Python or Node needed.
@@ -85,7 +85,7 @@ fi
 # --- optional clean slate ----------------------------------------------------
 if [ "$FRESH" = 1 ]; then
   # The samples directory belongs to ghidra-headless-mcp and is left alone.
-  echo "==> wiping volumes (postgres, minio)"
+  echo "==> wiping volumes (postgres, s3)"
   $COMPOSE_ENGINE --profile engine down -v
 fi
 

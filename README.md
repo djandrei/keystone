@@ -79,7 +79,7 @@ boot (idempotent bootstrap); re-running never duplicates them.
 | http://localhost:8080/api/healthz | Liveness probe |
 | postgres:5432 | PostgreSQL 16 (internal) |
 | redis:6379 | Redis 7 (internal; Celery job queue + progress pub/sub) |
-| minio:9000 | MinIO / S3 object storage (internal) |
+| s3:7070 | S3 object storage — VersityGW (internal) |
 | ghidra-headless-mcp:1341 | the Ghidra backend — **not part of this stack**: its own repository and compose, reached by the worker over that stack's network |
 
 ## Configuration
@@ -95,7 +95,7 @@ Secrets to change for production:
 
 - `KEYSTONE_JWT_SECRET` — signs access tokens; use a long random value.
 - `KEYSTONE_ADMIN_PASSWORD` — the first-run admin password.
-- `POSTGRES_PASSWORD` / `MINIO_ROOT_PASSWORD` / `KEYSTONE_S3_SECRET_KEY`.
+- `POSTGRES_PASSWORD` / `KEYSTONE_S3_SECRET_KEY`.
 - `KEYSTONE_LLM_API_KEY` — the LLM endpoint key. It is a **deployment secret**:
   Keystone never stores it in the database. The admin sets the LLM *endpoint URL*
   and *default model* at runtime under **Settings**; the key stays in the

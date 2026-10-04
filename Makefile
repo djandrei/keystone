@@ -12,7 +12,7 @@ build:     ; $(COMPOSE) build
 test: test-be test-fe
 test-be:   ; $(COMPOSE) run --rm backend pytest
 test-fe:   ; $(COMPOSE) run --rm frontend npm test
-# integration tests need the stack up (postgres/redis/minio); deselected from the default run
+# integration tests need the stack up (postgres/redis/s3); deselected from the default run
 test-integration: ; $(COMPOSE) run --rm backend pytest -m integration
 
 # Enforced gate: ruff + black + eslint + tsc. (mypy is advisory — `make typecheck-be`.)

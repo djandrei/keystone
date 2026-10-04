@@ -35,7 +35,7 @@ class BinaryRef:
     filename: str | None = None
 
 
-# --- decompilation cache (in-memory default; worker backs it with MinIO in M3) --
+# --- decompilation cache (in-memory default; worker backs it with S3 in M3) --
 class DecompileCache(Protocol):
     def get(self, sha256: str, fn: str) -> str | None: ...
     def put(self, sha256: str, fn: str, code: str) -> None: ...
