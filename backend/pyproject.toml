@@ -53,7 +53,7 @@ include = ["keystone_api*"]
 testpaths = ["tests"]
 addopts = "-q -m 'not integration'"
 markers = [
-    "integration: needs the live Docker Compose services (db/redis/minio/ghidra-mcp)",
+    "integration: needs the live Docker Compose services (db/redis/minio) and a running ghidra-headless-mcp",
 ]
 
 [tool.ruff]

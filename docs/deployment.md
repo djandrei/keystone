@@ -6,6 +6,9 @@ capable), nginx + TLS at the edge, persistent Postgres + MinIO.
 ## 1. Prerequisites
 - Docker + Docker Compose on the host.
 - A DNS name pointing at the host (for real TLS).
+- **ghidra-headless-mcp running on the same host** — its own repository and
+  compose stack, set up first (§6). Keystone's worker joins its network and
+  shares its samples directory.
 
 ## 2. Configure secrets
 ```bash
@@ -30,7 +33,7 @@ docker compose -f infra/docker-compose.prod.yml --env-file infra/.env up -d --bu
 ```
 Starts postgres, redis, minio (+ bucket init), backend (gunicorn), worker (celery)
 and the nginx edge (TLS :443, HTTP→HTTPS on :80). Health-gated by `/readyz`.
-Add `--profile engine` to also start the Ghidra backend for real analyses (§6).
+ghidra-headless-mcp must already be up: the worker joins its network (§6).
 
 ## 5. First-run: migrate + bootstrap
 ```bash
@@ -41,37 +44,39 @@ $C run --rm backend python -m keystone_api.cli bootstrap    # settings + Default
 Open `https://<host>/`, sign in as `admin` (password from `.env`), then **change the
 admin password immediately**.
 
-## 6. The analysis engine (optional)
-Real RE/VR analyses need the `ghidra-mcp` service, which the prod compose defines
-behind the `engine` profile. Without it the app runs but analyses can't start.
-The worker image already carries Semgrep for VR.
+## 6. The analysis engine: ghidra-headless-mcp
+Real RE/VR analyses run against **ghidra-headless-mcp**, a separate repository
+with its own compose stack. Keystone does not start it; set it up first, on the
+same host. The worker image already carries Semgrep for VR.
 
-1. Build the image from the `ghidra-headless-mcp` repo (it is on no registry):
-   ```bash
-   docker build -f Dockerfile.slim -t ghidra-headless-mcp:12.1.3 .
-   ```
-2. Set `KEYSTONE_MCP_API_KEY` in `infra/.env` — the bearer token the worker sends.
-   The server refuses to start without it.
-3. Bring the stack up with the profile:
-   ```bash
-   docker compose -f infra/docker-compose.prod.yml --env-file infra/.env --profile engine up -d --build
-   ```
+1. In `ghidra-headless-mcp` (checked out beside this repository): set
+   `GHMCP_API_KEY` in its `.env`, keep `SAMPLES_DIR=./samples`, and
+   `docker compose up -d`. Its compose network is named `ghidra-headless-mcp`.
+2. Here, in `infra/.env`: `KEYSTONE_MCP_API_KEY` = that same key. If the two
+   repositories are not side by side, also set `KEYSTONE_SAMPLES_DIR` (its
+   samples directory, relative to `infra/`) and, if it renamed its network,
+   `KEYSTONE_GHMCP_NETWORK`.
+3. Bring Keystone up as in §4.
 
-The worker reaches it at the default `KEYSTONE_MCP_ENDPOINT`
-(`http://ghidra-mcp:1341`); it is not published outside the compose network.
-Ghidra projects live in the `ghidra-projects` volume and are rebuilt on demand
-from the `samples` volume, so they need no backup. To use an external server
-instead, leave the profile off and point `KEYSTONE_MCP_ENDPOINT` at it. For a
-demo without Ghidra/LLM, `KEYSTONE_ENGINE_FAKE=1` on the worker drives the full
-path deterministically.
+The worker calls it at the default `KEYSTONE_MCP_ENDPOINT`
+(`http://ghidra-headless-mcp:1341`) over that network — never through a
+published port. Uploaded binaries are written to its samples directory, which
+both stacks mount at `/samples`, so the path the worker passes to
+`analyze_binary` is the same file on both sides. Ghidra's projects are
+ghidra-headless-mcp's to keep. For a demo without Ghidra/LLM,
+`KEYSTONE_ENGINE_FAKE=1` on the worker drives the full path deterministically.
 
 ## 7. Backup & restore
 ```bash
 ./infra/backup.sh                       # -> backups/<timestamp>/ (pg dump + minio mirror)
 ./infra/restore.sh backups/<timestamp>  # restore both
 ```
-Schedule `backup.sh` from cron. State lives in the `pgdata`, `miniodata`, `samples`
-volumes.
+Schedule `backup.sh` from cron. It covers the `pgdata` and `miniodata` volumes.
+**Back up the shared samples directory too** (ghidra-headless-mcp's `samples/`):
+every uploaded binary is also in MinIO, under `binaries/<sha256>`, but the worker
+hands Ghidra the file in the samples directory and does not restore a missing one
+from MinIO. Without that directory, existing binaries cannot be analysed until
+they are uploaded again.
 
 ## 8. Upgrades
 ```bash

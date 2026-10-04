@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     sample_dir: str = "/samples"  # shared volume where uploads are written for Ghidra import
 
     # --- ghidra-headless-mcp (M2) ---
-    mcp_endpoint: str = "http://ghidra-mcp:1341"
+    mcp_endpoint: str = "http://ghidra-headless-mcp:1341"
     # Bearer token for the authenticated MCP server. Deployment secret — never in
     # the DB. Must equal the server's GHMCP_API_KEY (compose feeds both from one var).
     mcp_api_key: str = ""

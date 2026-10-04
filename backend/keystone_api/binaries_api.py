@@ -113,7 +113,7 @@ def upload_binary():  # type: ignore[no-untyped-def]
     if not store.exists(key):
         store.put(key, data)
 
-    # best-effort stage for Ghidra import (shared samples volume)
+    # best-effort stage for Ghidra import (the samples directory shared with ghidra-headless-mcp)
     program_name = _sanitize_program_name(file.filename or sha256)
     try:
         os.makedirs(settings.sample_dir, exist_ok=True)

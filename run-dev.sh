@@ -37,9 +37,10 @@ for arg in "$@"; do
 Start Keystone in the development environment (Docker Compose).
 
   ./run-dev.sh               up + migrate + bootstrap + fake-engine worker
-  ./run-dev.sh --real-engine real Ghidra + a live LLM: starts ghidra-mcp and a
-                             real worker (needs KEYSTONE_LLM_API_KEY + the LLM
-                             endpoint/model in Settings; generates KEYSTONE_MCP_API_KEY)
+  ./run-dev.sh --real-engine real Ghidra + a live LLM: a real worker against the
+                             running ghidra-headless-mcp (needs KEYSTONE_MCP_API_KEY =
+                             its GHMCP_API_KEY, KEYSTONE_LLM_API_KEY, and the LLM
+                             endpoint/model in Settings)
   ./run-dev.sh --fresh       wipe the volumes first (clean DB + object store)
   ./run-dev.sh --no-engine   skip the worker (browse/login/upload work; runs won't)
   ./run-dev.sh --logs        follow logs after starting
@@ -61,9 +62,30 @@ if [ ! -f infra/.env ]; then
   cp infra/.env.example infra/.env
 fi
 
+# --- ghidra-headless-mcp: set up first, in its own repository ----------------
+# Keystone shares its samples directory (mounted at /samples by both stacks) and
+# its worker joins its compose network. Read the two settings the way compose
+# will: the shell environment, then infra/.env, then the side-by-side defaults.
+env_value() { sed -nE "s/^$1=(.*)$/\1/p" infra/.env | tail -1; }
+SAMPLES_DIR="${KEYSTONE_SAMPLES_DIR:-$(env_value KEYSTONE_SAMPLES_DIR)}"; SAMPLES_DIR="${SAMPLES_DIR:-../../ghidra-headless-mcp/samples}"
+case "$SAMPLES_DIR" in /*) SAMPLES_PATH="$SAMPLES_DIR" ;; *) SAMPLES_PATH="infra/$SAMPLES_DIR" ;; esac
+GHMCP_NETWORK="${KEYSTONE_GHMCP_NETWORK:-$(env_value KEYSTONE_GHMCP_NETWORK)}"; GHMCP_NETWORK="${GHMCP_NETWORK:-ghidra-headless-mcp}"
+if [ ! -d "$SAMPLES_PATH" ]; then
+  # Checked here because docker would otherwise create it, root-owned.
+  echo "error: no samples directory at $SAMPLES_PATH — set up ghidra-headless-mcp first" >&2
+  echo "       (clone it beside this repository, or set KEYSTONE_SAMPLES_DIR in infra/.env)" >&2
+  exit 1
+fi
+if [ "$ENGINE" = 1 ] && ! docker network inspect "$GHMCP_NETWORK" >/dev/null 2>&1; then
+  echo "error: no Docker network '$GHMCP_NETWORK' — start ghidra-headless-mcp first" >&2
+  echo "       (docker compose up -d in its repository; or run with --no-engine)" >&2
+  exit 1
+fi
+
 # --- optional clean slate ----------------------------------------------------
 if [ "$FRESH" = 1 ]; then
-  echo "==> wiping volumes (postgres, minio, samples)"
+  # The samples directory belongs to ghidra-headless-mcp and is left alone.
+  echo "==> wiping volumes (postgres, minio)"
   $COMPOSE_ENGINE --profile engine down -v
 fi
 
@@ -99,21 +121,14 @@ $COMPOSE exec -T backend python -m keystone_api.cli bootstrap
 
 # --- analysis worker (fake engine) -------------------------------------------
 if [ "$ENGINE" = 1 ] && [ "$REAL" = 1 ]; then
-  # real engine: authenticated ghidra-mcp + a worker that calls Ghidra and the LLM
+  # real engine: a worker that calls ghidra-headless-mcp and the LLM. The key is
+  # ghidra-headless-mcp's, so it is copied from there, never generated here.
   if ! grep -q '^KEYSTONE_MCP_API_KEY=..' infra/.env; then
-    echo "==> generating KEYSTONE_MCP_API_KEY (shared by ghidra-mcp and the worker)"
-    KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-    if grep -q '^KEYSTONE_MCP_API_KEY=' infra/.env; then
-      sed -i "s|^KEYSTONE_MCP_API_KEY=.*|KEYSTONE_MCP_API_KEY=${KEY}|" infra/.env
-    else
-      printf 'KEYSTONE_MCP_API_KEY=%s\n' "$KEY" >> infra/.env
-    fi
+    echo "error: set KEYSTONE_MCP_API_KEY in infra/.env to ghidra-headless-mcp's GHMCP_API_KEY" >&2
+    exit 1
   fi
-  echo "==> starting real engine: ghidra-mcp + worker (Ghidra + live LLM)"
-  $COMPOSE --profile engine up -d ghidra-mcp worker
-  # VR needs Semgrep in the worker; install it if the image doesn't already have it
-  echo "==> ensuring Semgrep in the worker (for VR)"
-  $COMPOSE exec -T worker sh -c "command -v semgrep >/dev/null || pip install -q semgrep" || true
+  echo "==> starting the real-engine worker (ghidra-headless-mcp + live LLM)"
+  $COMPOSE --profile engine up -d worker
 elif [ "$ENGINE" = 1 ]; then
   echo "==> starting the analysis worker (fake engine — no Ghidra/LLM needed)"
   $COMPOSE_ENGINE --profile engine up -d worker

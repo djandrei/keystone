@@ -27,9 +27,37 @@ Everything is test-gated and comes up with one command.
 No host Python or Node is required — every service runs in a container, with
 source bind-mounted for hot reload.
 
-```bash
-make up            # build + start the whole stack (Ctrl-C to stop; `make down` to remove)
+### 1. Set up ghidra-headless-mcp first
+
+Keystone's Ghidra backend is `ghidra-headless-mcp`, a separate repository with its
+own compose stack. Keystone does not start it; its
+worker joins that stack's Docker network and shares its samples directory. Check
+the two out side by side:
+
 ```
+work/
+  ghidra-headless-mcp/   configured and started first (see its README, "Running with Keystone")
+  keystone/              this repository
+```
+
+In `ghidra-headless-mcp`: set `GHMCP_API_KEY` in its `.env`, keep `SAMPLES_DIR=./samples`,
+and `docker compose up -d`. Then, here, put the **same** key in `infra/.env` as
+`KEYSTONE_MCP_API_KEY`. Uploaded binaries are written to its `samples/` directory, which
+both stacks mount at `/samples`.
+
+Other layouts: `KEYSTONE_SAMPLES_DIR` (path, relative to `infra/`) and
+`KEYSTONE_GHMCP_NETWORK` (its `GHMCP_NETWORK`) in `infra/.env`.
+
+### 2. Start Keystone
+
+```bash
+./run-dev.sh       # core stack + migrations + admin + a fake-engine worker
+./run-dev.sh --real-engine   # a worker that calls ghidra-headless-mcp and a live LLM
+make up            # or: the core stack only, in the foreground (`make down` to remove)
+```
+
+`run-dev.sh` checks for the samples directory and, when it starts a worker, for
+ghidra-headless-mcp's network — and says which is missing.
 
 Then open **http://localhost:8080** and sign in with the first-run admin:
 
@@ -52,7 +80,7 @@ boot (idempotent bootstrap); re-running never duplicates them.
 | postgres:5432 | PostgreSQL 16 (internal) |
 | redis:6379 | Redis 7 (internal; Celery job queue + progress pub/sub) |
 | minio:9000 | MinIO / S3 object storage (internal) |
-| ghidra-mcp:1341 | `ghidra-headless-mcp` (the analysis engine's Ghidra backend) |
+| ghidra-headless-mcp:1341 | the Ghidra backend — **not part of this stack**: its own repository and compose, reached by the worker over that stack's network |
 
 ## Configuration
 
