@@ -69,7 +69,7 @@ services:
     restart: unless-stopped
 
   worker:
-    build: { context: ../backend, target: prod }
+    build: { context: ../backend, target: worker-prod }
     <<: *backend-env
     depends_on:
       redis: { condition: service_healthy }

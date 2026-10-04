@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
+
+import pytest
+
 from keystone_engine.mcp import GhidraMcpClient
 from keystone_engine.results import VRFinding
 from keystone_engine.semgrep import (
@@ -88,6 +93,26 @@ def test_parse_and_group():
 def test_run_semgrep_with_injected_runner(tmp_path):
     findings = run_semgrep(tmp_path, "p/ci", runner=lambda d, c: SEMGREP_JSON)
     assert [f.line for f in findings] == [3, 1]
+
+
+SHIPPED_RULESET = Path(__file__).resolve().parents[1] / "semgrep-rules" / "decompiled-c.yaml"
+
+
+@pytest.mark.skipif(
+    shutil.which("semgrep") is None,
+    reason="the semgrep CLI ships only in the worker image (the `engine` extra)",
+)
+def test_the_default_runner_scans_with_the_real_semgrep(tmp_path):
+    """Every other test injects a fake runner, which is how a worker image
+    without Semgrep went unnoticed: VR would fail at its first scan. This one
+    runs the real CLI with the shipped ruleset over a one-line strcpy."""
+    (tmp_path / "copy.c").write_text(
+        "void copy(char *dst, char *src) {\n  strcpy(dst, src);\n}\n"
+    )
+
+    findings = run_semgrep(tmp_path, str(SHIPPED_RULESET))
+
+    assert [(rule_class(f.rule), f.line) for f in findings] == [("dangerous-copy", 2)]
 
 
 def test_rule_class():

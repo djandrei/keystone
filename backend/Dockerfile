@@ -14,6 +14,16 @@ EXPOSE 8000
 # Dev default; prod compose overrides with gunicorn (M5).
 CMD ["flask", "--app", "keystone_api:create_app", "run", "--host", "0.0.0.0", "--port", "8000", "--debug"]
 
+# --- worker images: the API image plus Semgrep (the `engine` extra) ---
+# Only the VR pipeline runs the semgrep CLI, and only in the worker; the API
+# deliberately has none. Compose runs its command (celery) over these.
+FROM base AS worker
+RUN pip install -e ".[dev,engine]"
+
+FROM base AS worker-prod
+RUN pip install -e ".[prod,engine]"
+ENV KEYSTONE_ENV=production
+
 # --- production image: gunicorn + gevent (WebSocket-capable) ---
 FROM base AS prod
 RUN pip install -e ".[prod]"

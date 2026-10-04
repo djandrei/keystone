@@ -100,7 +100,7 @@ services:
   worker:
     build:
       context: ../backend
-      target: base
+      target: worker
     profiles: ["engine"]
     <<: *backend-env
     depends_on:
