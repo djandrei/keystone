@@ -30,6 +30,7 @@ docker compose -f infra/docker-compose.prod.yml --env-file infra/.env up -d --bu
 ```
 Starts postgres, redis, minio (+ bucket init), backend (gunicorn), worker (celery)
 and the nginx edge (TLS :443, HTTP→HTTPS on :80). Health-gated by `/readyz`.
+Add `--profile engine` to also start the Ghidra backend for real analyses (§6).
 
 ## 5. First-run: migrate + bootstrap
 ```bash
@@ -41,10 +42,28 @@ Open `https://<host>/`, sign in as `admin` (password from `.env`), then **change
 admin password immediately**.
 
 ## 6. The analysis engine (optional)
-The RE/VR engine needs `ghidra-headless-mcp` (and Semgrep for VR); pin and run it,
-then point `KEYSTONE_MCP_ENDPOINT` at it. Without it the app runs but analyses can't
-start. For a demo without Ghidra/LLM, `KEYSTONE_ENGINE_FAKE=1` on the worker drives
-the full path deterministically.
+Real RE/VR analyses need the `ghidra-mcp` service, which the prod compose defines
+behind the `engine` profile. Without it the app runs but analyses can't start.
+The worker image already carries Semgrep for VR.
+
+1. Build the image from the `ghidra-headless-mcp` repo (it is on no registry):
+   ```bash
+   docker build -f Dockerfile.slim -t ghidra-headless-mcp:12.1.3 .
+   ```
+2. Set `KEYSTONE_MCP_API_KEY` in `infra/.env` — the bearer token the worker sends.
+   The server refuses to start without it.
+3. Bring the stack up with the profile:
+   ```bash
+   docker compose -f infra/docker-compose.prod.yml --env-file infra/.env --profile engine up -d --build
+   ```
+
+The worker reaches it at the default `KEYSTONE_MCP_ENDPOINT`
+(`http://ghidra-mcp:1341`); it is not published outside the compose network.
+Ghidra projects live in the `ghidra-projects` volume and are rebuilt on demand
+from the `samples` volume, so they need no backup. To use an external server
+instead, leave the profile off and point `KEYSTONE_MCP_ENDPOINT` at it. For a
+demo without Ghidra/LLM, `KEYSTONE_ENGINE_FAKE=1` on the worker drives the full
+path deterministically.
 
 ## 7. Backup & restore
 ```bash

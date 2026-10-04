@@ -78,6 +78,21 @@ services:
     command: ["celery", "-A", "worker.app", "worker", "--loglevel=info", "--concurrency=4"]
     restart: unless-stopped
 
+  # --- engine profile: the Ghidra backend for real analyses ---
+  # Opt in with `--profile engine`; without it the app runs but analyses can't
+  # start. The image is built locally from the ghidra-headless-mcp repo
+  # (Dockerfile.slim, Ghidra 12.1.3) — it is on no registry. Internal only: no
+  # published port, and the server refuses to start without the key.
+  ghidra-mcp:
+    image: ghidra-headless-mcp:12.1.3
+    profiles: ["engine"]
+    environment:
+      GHIDRA_INSTALL_DIR: /ghidra
+      GHMCP_API_KEY: ${KEYSTONE_MCP_API_KEY:-}
+    expose: ["1341"]
+    volumes: [ghidra-projects:/projects, samples:/samples]
+    restart: unless-stopped
+
   frontend:
     build: { context: ../frontend, target: prod }
     depends_on: [backend]
@@ -91,3 +106,4 @@ volumes:
   pgdata:
   miniodata:
   samples:
+  ghidra-projects:
