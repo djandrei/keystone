@@ -148,7 +148,7 @@ def resolve_rule_set_versions(
 ) -> list[RuleSetVersion]:
     """The versions a VR analysis should run, in `--config` order.
 
-    Resolution order (docs/rule-sets-plan.md §5):
+    Resolution order:
       1. `params["rule_set_version_ids"]` — an exact pin
       2. `params["rule_set_ids"]`         — resolved to each set's latest version
       3. `SystemSettings.default_rule_set_id`

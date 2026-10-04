@@ -1,4 +1,4 @@
-"""Schema invariants for friendly function names (docs/function-naming-plan.md §6)."""
+"""Schema invariants for friendly function names."""
 
 from __future__ import annotations
 

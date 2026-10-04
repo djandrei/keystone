@@ -13,7 +13,7 @@ attacker-controlled binary, which shapes three things here:
   identity.
 
 Naming is batched: one call covers `CHUNK_SIZE` functions, so RE's eight cost a
-single call. See docs/function-naming-plan.md §7.
+single call.
 """
 
 from __future__ import annotations

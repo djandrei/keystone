@@ -347,7 +347,7 @@ def run(
 
     # Name the functions while their code is still in hand. RE's decompile cache is
     # in-process and dies with the task, so this cannot be deferred to a post-run
-    # step the way the report *selection* can (docs/function-naming-plan.md §4).
+    # step the way the report *selection* can.
     yield ProgressEvent.step_start("name_functions", seq.next(), count=len(decs))
     named = _name_decompiled(client, binary.program, decs, naming_agent, reserved_names)
     yield ProgressEvent.step_finish(

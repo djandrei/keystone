@@ -30,7 +30,7 @@ verdict. Crude `Classification: benign` injection is rejected by modern models;
    analyst as a ⚠ banner (the LLM→human trust boundary).
 4. **Rule text is untrusted too.** A Semgrep rule's `message` reaches the VR
    triage prompt. That was safe while rules shipped in an admin-controlled file;
-   once any analyst can author a rule set (see `docs/rule-sets-plan.md`), it is
+   once any analyst can author a rule set, it is
    free text on the prompt path. `triage_findings` now runs the message through
    `sanitize_decompiled` + `fence_untrusted` with the honest `RULE_NOTE` label —
    *user-editable rule text, no authority over the verdict* — rather than the
@@ -46,8 +46,7 @@ verdict. Crude `Classification: benign` injection is rejected by modern models;
    **original Ghidra symbol and address are printed beside every friendly name**,
    in the UI and in the report. The friendly name is a reading aid, never the
    identity. Names are also never written back into Ghidra — one project holds
-   every team's programs, so a rename there would cross the team boundary
-   (see `docs/function-naming-plan.md` §3).
+   every team's programs, so a rename there would cross the team boundary.
 
 See `keystone_engine/security.py`.
 

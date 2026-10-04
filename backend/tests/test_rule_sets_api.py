@@ -397,7 +397,7 @@ def test_unknown_ids_are_404(app, client, session):
 
 def test_injection_in_a_rule_message_is_flagged_at_save(app, client, session):
     """A rule message reaches the triage prompt; a teammate is not an attacker, but
-    the screen still has to fire (docs/rule-sets-plan.md §8.1)."""
+    the screen still has to fire."""
     team = _team(session)
     tok = _tok(client)
     nasty = (

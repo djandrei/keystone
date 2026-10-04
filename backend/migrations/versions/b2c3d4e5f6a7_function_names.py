@@ -10,7 +10,7 @@ analysis's report shows).
 
 Names are scoped to a binary, so a second analysis of the same sample reuses
 them; team visibility rides on `binaries.team_id` and needs no new column.
-Nothing is written back into Ghidra — see docs/function-naming-plan.md §3.
+Nothing is written back into Ghidra: one project holds every team's programs.
 """
 
 from __future__ import annotations

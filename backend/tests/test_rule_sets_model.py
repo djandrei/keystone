@@ -1,5 +1,5 @@
 """Rule-set schema invariants and the resolution order that turns a request into a
-pinned set of versions (docs/rule-sets-plan.md §4, §5)."""
+pinned set of versions."""
 
 from __future__ import annotations
 

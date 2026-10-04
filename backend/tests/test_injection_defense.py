@@ -133,7 +133,7 @@ def test_vr_pipeline_flags_injection(tmp_path):
 # --------------------------------------------------------------------------- #
 # SEC: a rule set is team-editable (M6), so a rule *message* is free text reaching
 # the triage prompt — the one input that used to be trusted because it shipped in
-# an admin-controlled file. See docs/rule-sets-plan.md §8.1.
+# an admin-controlled file. See docs/security.md.
 # --------------------------------------------------------------------------- #
 class _CapturingTriage:
     def __init__(self):

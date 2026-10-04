@@ -195,7 +195,7 @@ def run(
     # Name only the functions the analyst is actually triaging. VR decompiles
     # EVERY function — real binaries run to thousands of them — so naming the
     # lot is neither affordable nor useful. The findings already point at the
-    # interesting ones (docs/function-naming-plan.md §5).
+    # interesting ones.
     yield ProgressEvent.step_start("name_functions", seq.next())
     named = _name_finding_functions(
         client, binary.program, target, assessed, naming_agent, reserved_names

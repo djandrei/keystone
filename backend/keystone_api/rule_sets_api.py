@@ -1,7 +1,7 @@
 """The Semgrep rule-set library: a team-scoped, immutably-versioned collection of
 patterns an analyst picks from when starting a VR analysis.
 
-Two tiers (docs/rule-sets-plan.md §2):
+Two tiers:
 
 - **System built-ins** — `team_id IS NULL`. Readable by everyone, writable only by
   admins. A team customizes one by cloning it, never by editing it.
@@ -417,8 +417,7 @@ def clone_rule_set(rule_set_id: int):  # type: ignore[no-untyped-def]
 @rule_sets_bp.post("/validate")
 @require_role(Role.admin, Role.analyst)
 def validate():  # type: ignore[no-untyped-def]
-    """Structural validation only — Semgrep itself is a worker-only dependency.
-    See docs/rule-sets-plan.md §7."""
+    """Structural validation only — Semgrep itself is a worker-only dependency."""
     try:
         body = ValidateRequest.model_validate(request.get_json(silent=True) or {})
     except ValidationError as e:

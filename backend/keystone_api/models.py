@@ -1,4 +1,4 @@
-"""Keystone data model (see docs/design.md §7).
+"""Keystone data model.
 
 Two orthogonal axes: `User.role` is the system capability tier; team membership
 (via `team_members`) is the data-visibility boundary. Binaries and analyses carry
@@ -277,7 +277,7 @@ class RuleSet(Base):
     """A named Semgrep ruleset. `team_id IS NULL` marks a system built-in: readable
     by every team, writable only by admins, and forked into a team with `clone`.
     Content never lives here — it lives in immutable `RuleSetVersion` rows, so an
-    analysis can pin the exact text it ran (see docs/rule-sets-plan.md §4).
+    analysis can pin the exact text it ran.
 
     There is deliberately no `current_version_id` pointer: it would make a circular
     FK with `rule_set_versions`. The latest version is `max(version_no)`, and a
@@ -390,8 +390,7 @@ class FunctionName(Base):
 
     Nothing here is ever written back into Ghidra. One project holds every team's
     programs, so a rename there would be one team editing another's view; keeping
-    names in Postgres inherits `Binary.team_id`'s scope for free. See
-    docs/function-naming-plan.md §3.
+    names in Postgres inherits `Binary.team_id`'s scope for free.
     """
 
     __tablename__ = "function_names"

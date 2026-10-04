@@ -2,7 +2,7 @@
 
 Names are stored per binary and never written back into Ghidra — one project holds
 every team's programs, so a rename there would cross the team boundary Keystone
-enforces in Postgres (docs/function-naming-plan.md §3).
+enforces in Postgres.
 
 Authorization rides on the analysis and its binary: no new surface. If you can see
 the analysis you can read its names; analysts and admins can change them.
@@ -79,7 +79,7 @@ def list_functions(analysis_id: int):  # type: ignore[no-untyped-def]
 @require_role(Role.admin, Role.analyst)
 def toggle_functions(analysis_id: int):  # type: ignore[no-untyped-def]
     """Bulk include/exclude. The report re-renders from this on the next read —
-    there is no stored artifact to regenerate (docs/function-naming-plan.md §8)."""
+    there is no stored artifact to regenerate."""
     db = get_db()
     a = _analysis_or_404(db, analysis_id)
     if a is None:

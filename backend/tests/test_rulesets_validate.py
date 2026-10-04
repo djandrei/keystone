@@ -1,4 +1,4 @@
-"""Structural validation of authored Semgrep rule sets (docs/rule-sets-plan.md §7).
+"""Structural validation of authored Semgrep rule sets.
 
 This is the layer that runs in the API, which has no Semgrep — so it checks only
 what PyYAML plus the rule schema can decide."""
