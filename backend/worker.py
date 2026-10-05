@@ -282,9 +282,16 @@ def _run_analysis(analysis_id: int, session) -> AnalysisStatus:  # type: ignore[
         )
     client = GhidraMcpClient(base_url=settings.mcp_endpoint, api_key=settings.mcp_api_key)
 
+    # cache=False on every LM: react_with_retry re-runs the same prompts after a
+    # parse error, and DSPy's response cache would replay the malformed answer
+    # instead of asking the model again.
     sysset = get_or_create_settings(session)
     if sysset.llm_endpoint_url and sysset.default_model:
-        configure_lm(make_lm(sysset.llm_endpoint_url, sysset.default_model, settings.llm_api_key))
+        configure_lm(
+            make_lm(
+                sysset.llm_endpoint_url, sysset.default_model, settings.llm_api_key, cache=False
+            )
+        )
 
     # Two-model cascade: bind a cheaper triage LM to the VR triage agent, if
     # configured. Everything else runs on the global (analysis) LM.
@@ -296,11 +303,11 @@ def _run_analysis(analysis_id: int, session) -> AnalysisStatus:  # type: ignore[
         from keystone_engine.signatures.triage import make_triage_agent
 
         triage_agent = make_triage_agent()
-        triage_agent.set_lm(make_lm(*triage_target))
+        triage_agent.set_lm(make_lm(*triage_target, cache=False))
         # Naming is the same shape of work as triage — high volume, small answers
         # — so it rides the cheaper model when one is configured.
         naming_agent = make_naming_agent()
-        naming_agent.set_lm(make_lm(*triage_target))
+        naming_agent.set_lm(make_lm(*triage_target, cache=False))
         logging.getLogger("keystone.worker").info(
             "VR triage on separate model %s (analysis: %s)",
             triage_target[1],
