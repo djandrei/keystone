@@ -97,3 +97,45 @@ def test_make_lm_anthropic_endpoint():
     lm = make_lm("https://api.minimax.io/anthropic/v1", "MiniMax-M3", "k", cache=False)
     assert lm.model == "anthropic/MiniMax-M3"
     assert lm.kwargs["api_base"] == "https://api.minimax.io/anthropic/v1/messages"
+
+
+@pytest.fixture
+def stub_llm_server():
+    """A local HTTP server that records the path of every POST and answers 404."""
+    import http.server
+    import threading
+
+    paths: list[str] = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802 — BaseHTTPRequestHandler's naming
+            paths.append(self.path)
+            self.rfile.read(int(self.headers.get("content-length", 0)))
+            self.send_response(404)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_port}", paths
+    server.shutdown()
+
+
+@pytest.mark.parametrize(
+    "endpoint_path,model,expected",
+    [
+        # dspy 3.4's default engine appended /messages to the full URL make_lm
+        # builds, so a MiniMax run hit /anthropic/v1/messages/messages -> 404.
+        ("/anthropic/v1", "MiniMax-M3", "/anthropic/v1/messages"),
+        ("/v1", "qwen/qwen3-8b", "/v1/chat/completions"),
+    ],
+)
+def test_make_lm_requests_the_right_url(stub_llm_server, endpoint_path, model, expected):
+    base, paths = stub_llm_server
+    lm = make_lm(base + endpoint_path, model, "dummy-key", cache=False, num_retries=0)
+    # the stub answers 404 (litellm reports it as NotFoundError); the path is the point
+    with pytest.raises(Exception, match="NotFound|404"):
+        lm("hi")
+    assert paths == [expected]

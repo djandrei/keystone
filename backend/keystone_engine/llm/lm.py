@@ -57,7 +57,13 @@ def make_lm(endpoint_url: str, model: str, api_key: str, *, cache: bool = True, 
     import dspy
 
     prefixed, api_base = resolve_lm_target(endpoint_url, model)
-    return dspy.LM(prefixed, api_base=api_base, api_key=api_key, cache=cache, **kw)
+    # Pinned: api_base is built for litellm (the complete /messages URL for
+    # Anthropic). dspy's default "auto" engine prefers its lm15 backend, which
+    # appends /messages itself — /v1/messages/messages, a 404 — and may pick
+    # either backend per request.
+    return dspy.LM(
+        prefixed, api_base=api_base, api_key=api_key, cache=cache, engine="litellm", **kw
+    )
 
 
 def configure_lm(lm: Any) -> None:

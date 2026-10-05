@@ -14,7 +14,7 @@ dependencies = [
     "argon2-cffi>=23.1",
     "PyJWT>=2.8",
     # --- engine + async (M2) ---
-    "dspy>=2.5",
+    "dspy>=3.4",  # make_lm passes engine= (dspy 3.4.0 is the version verified)
     "celery>=5.3",
     "redis>=5.0",
     "boto3>=1.34",
