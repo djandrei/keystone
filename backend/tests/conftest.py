@@ -9,6 +9,15 @@ from keystone_api.db import Base, get_engine, get_session
 @pytest.fixture
 def app():
     app = create_app(Settings(env="test", database_url="sqlite://"))
+    # Record instead of sending. Without these the analyses API falls back to the
+    # real Celery broker and Redis, so a test run inside a live stack turns each
+    # analysis it creates into a real run of the live database's analysis with
+    # that id. A test that installs its own stand-in replaces these.
+    app.config["ENQUEUE"] = lambda aid: app.config.setdefault("_enqueued", []).append(aid)
+    app.config["CANCEL_SIGNAL"] = lambda aid: app.config.setdefault("_canceled", []).append(aid)
+    app.config["RULE_SIGNAL"] = lambda aid, rule: app.config.setdefault("_rules", []).append(
+        (aid, rule)
+    )
     import keystone_api.models  # noqa: F401  register tables
 
     Base.metadata.create_all(get_engine())
