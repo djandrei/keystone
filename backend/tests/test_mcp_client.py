@@ -16,6 +16,11 @@ class FakeTransport:
         self.calls.append((tool, args))
         return self.responses.get(tool, {})
 
+    def upload(self, filename: str, data: bytes, params: dict, timeout: float) -> dict:
+        self.calls.append(("upload", {"filename": filename, "data": data, **params}))
+        self.upload_timeout = timeout
+        return self.responses.get("upload", {})
+
 
 def test_imports_and_exports_map_to_list_symbols():
     t = FakeTransport()
@@ -37,6 +42,18 @@ def test_analyze_and_list_programs():
     assert c.analyze_binary("/samples/ls")["program"] == "ls"
     assert t.calls[0][1] == {"binary_path": "/samples/ls", "force": False}
     assert c.list_programs() == ["ls", "notepad.exe"]
+
+
+def test_import_binary_is_one_upload_that_analyzes_and_discards():
+    from keystone_engine.mcp.client import IMPORT_TIMEOUT_S
+
+    t = FakeTransport({"upload": {"analysis": {"program": "x_ls"}}})
+    c = GhidraMcpClient(transport=t)
+    assert c.import_binary("x_ls", b"\x7fELF")["analysis"]["program"] == "x_ls"
+    assert t.calls == [
+        ("upload", {"filename": "x_ls", "data": b"\x7fELF", "analyze": "true", "keep": "false"})
+    ]
+    assert t.upload_timeout == IMPORT_TIMEOUT_S > 1800  # outlasts the server's analysis
 
 
 def test_decompile_passes_single_or_batch():
@@ -158,3 +175,95 @@ def test_client_passes_api_key_to_default_transport():
 
     c = GhidraMcpClient(base_url="http://x", api_key="k")
     assert isinstance(c._t, HttpTransport) and c._t.api_key == "k"
+
+
+class _Resp:
+    def __init__(self, body: bytes = b"{}"):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return self.body
+
+
+def _http_error(code: int, kind: str, message: str):
+    import io
+    import json
+    import urllib.error
+
+    body = json.dumps({"error": {"kind": kind, "message": message}}).encode()
+    return urllib.error.HTTPError("http://x", code, "err", {}, io.BytesIO(body))
+
+
+def _patched_urlopen(monkeypatch, outcome):
+    """urlopen that records each request and raises/returns `outcome(n)`."""
+    import urllib.request
+
+    requests: list = []
+
+    def fake(req, timeout=None):
+        requests.append((req, timeout))
+        result = outcome(len(requests))
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    return requests
+
+
+@pytest.mark.parametrize("code,kind", [(400, "bad_argument"), (404, "not_found"), (504, "timeout")])
+def test_client_errors_and_504_are_not_retried(monkeypatch, code, kind):
+    from keystone_engine.mcp.client import HttpTransport
+
+    reqs = _patched_urlopen(monkeypatch, lambda n: _http_error(code, kind, "nope"))
+    with pytest.raises(McpError, match=f"HTTP {code}: {kind}: nope"):
+        HttpTransport("http://x", retries=2, backoff=0.0).call("analyze_binary", {})
+    assert len(reqs) == 1
+
+
+def test_other_5xx_is_retried(monkeypatch):
+    from keystone_engine.mcp.client import HttpTransport
+
+    reqs = _patched_urlopen(
+        monkeypatch, lambda n: _http_error(500, "error", "boom") if n < 2 else _Resp()
+    )
+    assert HttpTransport("http://x", retries=2, backoff=0.0).call("ping", {}) == {}
+    assert len(reqs) == 2
+
+
+def test_upload_sends_raw_bytes_and_413_is_too_large_not_retried(monkeypatch):
+    from keystone_engine.mcp.client import HttpTransport
+
+    reqs = _patched_urlopen(
+        monkeypatch,
+        lambda n: _http_error(413, "too_large", "file exceeds the 10-byte upload limit"),
+    )
+    t = HttpTransport("http://x/api", api_key="k", retries=2, backoff=0.0)
+    with pytest.raises(McpError, match="HTTP 413: too_large: file exceeds"):
+        t.upload("a b_ls", b"\x00\x01", {"analyze": "true", "keep": "false"}, 99.0)
+
+    assert len(reqs) == 1
+    req, timeout = reqs[0]
+    assert req.full_url == "http://x/api/upload?filename=a+b_ls&analyze=true&keep=false"
+    assert req.data == b"\x00\x01"  # raw, not base64/JSON
+    assert req.get_header("Content-type") == "application/octet-stream"
+    assert req.get_header("Authorization") == "Bearer k"
+    assert timeout == 99.0
+
+
+def test_non_json_error_body_falls_back_to_raw_text(monkeypatch):
+    import io
+    import urllib.error
+
+    from keystone_engine.mcp.client import HttpTransport
+
+    err = urllib.error.HTTPError("http://x", 403, "f", {}, io.BytesIO(b"Invalid API key"))
+    _patched_urlopen(monkeypatch, lambda n: err)
+    with pytest.raises(McpError, match="HTTP 403: Invalid API key"):
+        HttpTransport("http://x", backoff=0.0).call("ping", {})

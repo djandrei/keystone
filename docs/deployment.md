@@ -7,9 +7,8 @@ capable), nginx + TLS at the edge, persistent Postgres + S3 object storage
 ## 1. Prerequisites
 - Docker + Docker Compose on the host.
 - A DNS name pointing at the host (for real TLS).
-- **ghidra-headless-mcp running on the same host** — its own repository and
-  compose stack, set up first (§6). Keystone's worker joins its network and
-  shares its samples directory.
+- **ghidra-headless-mcp running and reachable** — a separate service, set up
+  first (§6). Keystone's worker reaches it by URL and shares nothing else with it.
 
 ## 2. Configure secrets
 ```bash
@@ -40,7 +39,7 @@ docker compose -f infra/docker-compose.prod.yml --env-file infra/.env up -d --bu
 ```
 Starts postgres, redis, s3 (+ bucket init), backend (gunicorn), worker (celery)
 and the nginx edge (TLS :443, HTTP→HTTPS on :80). Health-gated by `/readyz`.
-ghidra-headless-mcp must already be up: the worker joins its network (§6).
+ghidra-headless-mcp should already be up (§6); the worker calls it per analysis.
 
 ## 5. First-run: migrate + bootstrap
 ```bash
@@ -52,26 +51,26 @@ Open `https://<host>/`, sign in as `admin` (password from `.env`), then **change
 admin password immediately**.
 
 ## 6. The analysis engine: ghidra-headless-mcp
-Real RE/VR analyses run against **ghidra-headless-mcp**, a separate repository
-with its own compose stack. Keystone does not start it; set it up first, on the
-same host. The worker image already carries Semgrep for VR.
+Real RE/VR analyses run against **ghidra-headless-mcp**, a separate, standalone
+service. Keystone does not start it and shares no files or network with it; set
+it up first. The worker image already carries Semgrep for VR.
 
-1. In `ghidra-headless-mcp` (checked out beside this repository): set
-   `GHMCP_API_KEY` in its `.env`, keep `SAMPLES_DIR=./samples`, and
-   `docker compose up -d`. Its compose network is named `ghidra-headless-mcp`.
-2. Here, in `infra/.env`: `KEYSTONE_MCP_API_KEY` = that same key. If the two
-   repositories are not side by side, also set `KEYSTONE_SAMPLES_DIR` (its
-   samples directory, relative to `infra/`) and, if it renamed its network,
-   `KEYSTONE_GHMCP_NETWORK`.
+1. In `ghidra-headless-mcp`: set `GHMCP_API_KEY` and start it with
+   `docker compose up -d`, which runs its `--http` service on 1351. Keep its
+   `MAX_STREAM_UPLOAD_BYTES` (128 MiB by default) at least
+   `KEYSTONE_UPLOAD_MAX_BYTES` (100 MiB by default).
+2. Here, in `infra/.env`: `KEYSTONE_MCP_API_KEY` = that same key, and
+   `KEYSTONE_MCP_ENDPOINT` = its URL as the worker container sees it. The
+   default, `http://host.docker.internal:1351/api`, is its published `--http`
+   port on this Docker host.
 3. Bring Keystone up as in §4.
 
-The worker calls it at the default `KEYSTONE_MCP_ENDPOINT`
-(`http://ghidra-headless-mcp:1341`) over that network — never through a
-published port. Uploaded binaries are written to its samples directory, which
-both stacks mount at `/samples`, so the path the worker passes to
-`analyze_binary` is the same file on both sides. Ghidra's projects are
-ghidra-headless-mcp's to keep. For a demo without Ghidra/LLM,
-`KEYSTONE_ENGINE_FAKE=1` on the worker drives the full path deterministically.
+Per analysis, the worker reads the binary from Keystone's object store and sends
+it as raw bytes to `POST /api/upload?analyze=true&keep=false`: one request that
+imports it and discards the upload. The imported program stays in
+ghidra-headless-mcp's project, which is its to keep. Client errors come back as
+4xx and are not retried; a file over the server's limit fails with `too_large`. For a demo without Ghidra/LLM, `KEYSTONE_ENGINE_FAKE=1` on the
+worker drives the full path deterministically.
 
 ## 7. Backup & restore
 ```bash
@@ -81,11 +80,9 @@ ghidra-headless-mcp's to keep. For a demo without Ghidra/LLM,
 Schedule `backup.sh` from cron. It covers the `pgdata` and `s3data` volumes; the
 S3 copy is taken with the `aws` CLI (`aws s3 sync`), so it works against any S3
 store.
-**Back up the shared samples directory too** (ghidra-headless-mcp's `samples/`):
-every uploaded binary is also in S3, under `binaries/<sha256>`, but the worker
-hands Ghidra the file in the samples directory and does not restore a missing one
-from S3. Without that directory, existing binaries cannot be analysed until
-they are uploaded again.
+Every uploaded binary is in S3, under `binaries/<sha256>`, and the worker sends it
+to ghidra-headless-mcp from there on each analysis, so these two volumes are all
+Keystone needs restored.
 
 ## 8. Upgrades
 ```bash

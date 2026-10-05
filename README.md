@@ -27,24 +27,23 @@ source bind-mounted for hot reload.
 
 ### 1. Set up ghidra-headless-mcp first
 
-Keystone's Ghidra backend is `ghidra-headless-mcp`, a separate repository with its
-own compose stack. Keystone does not start it; its
-worker joins that stack's Docker network and shares its samples directory. Check
-the two out side by side:
+Keystone's Ghidra backend is `ghidra-headless-mcp`, a separate, standalone service.
+Keystone does not start it and shares nothing with it — no files, no Docker
+network. The worker reaches its plain HTTP API (the `--http` service's `/api`)
+by URL only, and sends each binary to it as raw bytes when an analysis runs; the
+server imports it and discards the upload in the same request. Keystone's own copy
+stays in its object store.
 
-```
-work/
-  ghidra-headless-mcp/   configured and started first (see its README, "Running with Keystone")
-  keystone/              this repository
-```
+In `ghidra-headless-mcp`: set `GHMCP_API_KEY` in its `.env` and start it
+(`docker compose up -d` starts the `--http` service on 1351). Its
+`MAX_STREAM_UPLOAD_BYTES` (128 MiB by default) must be at least Keystone's
+`KEYSTONE_UPLOAD_MAX_BYTES` (100 MiB by default). Then, here, in `infra/.env`:
 
-In `ghidra-headless-mcp`: set `GHMCP_API_KEY` in its `.env`, keep `SAMPLES_DIR=./samples`,
-and `docker compose up -d`. Then, here, put the **same** key in `infra/.env` as
-`KEYSTONE_MCP_API_KEY`. Uploaded binaries are written to its `samples/` directory, which
-both stacks mount at `/samples`.
-
-Other layouts: `KEYSTONE_SAMPLES_DIR` (path, relative to `infra/`) and
-`KEYSTONE_GHMCP_NETWORK` (its `GHMCP_NETWORK`) in `infra/.env`.
+- `KEYSTONE_MCP_API_KEY` — the **same** key.
+- `KEYSTONE_MCP_ENDPOINT` — where the worker reaches it. The default,
+  `http://host.docker.internal:1351/api`, is its published `--http` port on the
+  Docker host; change the port if it publishes on another one (its
+  `GHMCP_HTTP_PORT`).
 
 ### 2. Start Keystone
 
@@ -54,8 +53,7 @@ Other layouts: `KEYSTONE_SAMPLES_DIR` (path, relative to `infra/`) and
 make up            # or: the core stack only, in the foreground (`make down` to remove)
 ```
 
-`run-dev.sh` checks for the samples directory and, when it starts a worker, for
-ghidra-headless-mcp's network — and says which is missing.
+`run-dev.sh --real-engine` checks that `KEYSTONE_MCP_API_KEY` is set.
 
 Then open **http://localhost:8080** and sign in with the first-run admin:
 
@@ -78,7 +76,7 @@ boot (idempotent bootstrap); re-running never duplicates them.
 | postgres:5432 | PostgreSQL 16 (internal) |
 | redis:6379 | Redis 7 (internal; Celery job queue + progress pub/sub) |
 | s3:7070 | S3 object storage — VersityGW (internal) |
-| ghidra-headless-mcp:1341 | the Ghidra backend — **not part of this stack**: its own repository and compose, reached by the worker over that stack's network |
+| host.docker.internal:1351/api | the Ghidra backend (`KEYSTONE_MCP_ENDPOINT`) — **not part of this stack**: a separate service the worker reaches by URL |
 
 ## Configuration
 

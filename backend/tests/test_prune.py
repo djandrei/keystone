@@ -1,9 +1,7 @@
-"""prune_binaries: delete binaries + attached analyses/objects/sample files, with
+"""prune_binaries: delete binaries + attached analyses/objects, with
 dedup-aware object removal and a non-destructive dry run."""
 
 from __future__ import annotations
-
-import os
 
 from keystone_api import services
 from keystone_api.models import Analysis, AnalysisMode, Binary, Team, User
@@ -27,7 +25,7 @@ class FakeStore:
         self.objects.pop(key, None)
 
 
-def _seed(session, tmp_path):
+def _seed(session):
     services.bootstrap(session)
     team = session.query(Team).filter_by(name="Default").one()
     u = session.query(User).filter_by(username="admin").one()
@@ -47,8 +45,6 @@ def _seed(session, tmp_path):
         session.add(b)
         session.flush()
         store.put(key, b"x" * size)
-        with open(os.path.join(tmp_path, f"{sha}_{name}"), "wb"):
-            pass
         for _ in range(analyses):
             session.add(
                 Analysis(team_id=team.id, binary_id=b.id, mode=AnalysisMode.re, created_by=u.id)
@@ -59,67 +55,64 @@ def _seed(session, tmp_path):
     return store, mk
 
 
-def test_prune_by_max_bytes(session, tmp_path):
-    store, mk = _seed(session, tmp_path)
+def test_prune_by_max_bytes(session):
+    store, mk = _seed(session)
     stub = mk("s" * 64, "ls", 64, analyses=2)
     real = mk("r" * 64, "crackme", 20000, analyses=1)
 
-    res = prune_binaries(session, store, str(tmp_path), max_bytes=256)
+    res = prune_binaries(session, store, max_bytes=256)
 
     assert res["binaries"] == 1 and res["analyses"] == 2
-    assert res["objects"] == 1 and res["samples"] == 1
+    assert res["objects"] == 1
     # only the real binary + its analysis survive
     assert [b.id for b in session.query(Binary).all()] == [real.id]
     assert session.query(Analysis).count() == 1
     assert stub.storage_key not in store.objects and real.storage_key in store.objects
-    assert not os.path.exists(os.path.join(tmp_path, f"{'s' * 64}_ls"))
-    assert os.path.exists(os.path.join(tmp_path, f"{'r' * 64}_crackme"))
 
 
-def test_dry_run_changes_nothing(session, tmp_path):
-    store, mk = _seed(session, tmp_path)
+def test_dry_run_changes_nothing(session):
+    store, mk = _seed(session)
     mk("s" * 64, "ls", 64, analyses=2)
     mk("r" * 64, "crackme", 20000)
 
-    res = prune_binaries(session, store, str(tmp_path), max_bytes=256, dry_run=True)
+    res = prune_binaries(session, store, max_bytes=256, dry_run=True)
 
     assert res["binaries"] == 1 and res["analyses"] == 2
     assert res["matched"] == [{"id": 1, "filename": "ls", "size": 64}]
     # nothing actually removed
     assert session.query(Binary).count() == 2
     assert f"binaries/{'s' * 64}" in store.objects
-    assert os.path.exists(os.path.join(tmp_path, f"{'s' * 64}_ls"))
 
 
-def test_prune_by_ids(session, tmp_path):
-    store, mk = _seed(session, tmp_path)
+def test_prune_by_ids(session):
+    store, mk = _seed(session)
     a = mk("a" * 64, "one", 10000)
     b = mk("b" * 64, "two", 10000)
 
-    res = prune_binaries(session, store, str(tmp_path), ids=[a.id])
+    res = prune_binaries(session, store, ids=[a.id])
 
     assert res["binaries"] == 1
     assert [x.id for x in session.query(Binary).all()] == [b.id]
 
 
-def test_shared_object_deleted_only_once(session, tmp_path):
+def test_shared_object_deleted_only_once(session):
     # two binaries (dedup) pointing at the same object: the object goes only when
     # the last referrer is removed.
-    store, mk = _seed(session, tmp_path)
+    store, mk = _seed(session)
     mk("1" * 64, "dup1", 64, storage_key="binaries/shared")
     mk("2" * 64, "dup2", 64, storage_key="binaries/shared")
 
-    res = prune_binaries(session, store, str(tmp_path), max_bytes=256)
+    res = prune_binaries(session, store, max_bytes=256)
 
     assert res["binaries"] == 2 and res["objects"] == 1  # deleted once, not twice
     assert "binaries/shared" not in store.objects
 
 
-def test_select_nothing_is_noop(session, tmp_path):
-    store, mk = _seed(session, tmp_path)
+def test_select_nothing_is_noop(session):
+    store, mk = _seed(session)
     mk("r" * 64, "crackme", 20000)
-    res = prune_binaries(session, store, str(tmp_path))  # neither ids nor max_bytes
-    assert res == {"binaries": 0, "analyses": 0, "objects": 0, "samples": 0, "matched": []}
+    res = prune_binaries(session, store)  # neither ids nor max_bytes
+    assert res == {"binaries": 0, "analyses": 0, "objects": 0, "matched": []}
     assert session.query(Binary).count() == 1
 
 

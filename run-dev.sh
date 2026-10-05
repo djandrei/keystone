@@ -62,29 +62,8 @@ if [ ! -f infra/.env ]; then
   cp infra/.env.example infra/.env
 fi
 
-# --- ghidra-headless-mcp: set up first, in its own repository ----------------
-# Keystone shares its samples directory (mounted at /samples by both stacks) and
-# its worker joins its compose network. Read the two settings the way compose
-# will: the shell environment, then infra/.env, then the side-by-side defaults.
-env_value() { sed -nE "s/^$1=(.*)$/\1/p" infra/.env | tail -1; }
-SAMPLES_DIR="${KEYSTONE_SAMPLES_DIR:-$(env_value KEYSTONE_SAMPLES_DIR)}"; SAMPLES_DIR="${SAMPLES_DIR:-../../ghidra-headless-mcp/samples}"
-case "$SAMPLES_DIR" in /*) SAMPLES_PATH="$SAMPLES_DIR" ;; *) SAMPLES_PATH="infra/$SAMPLES_DIR" ;; esac
-GHMCP_NETWORK="${KEYSTONE_GHMCP_NETWORK:-$(env_value KEYSTONE_GHMCP_NETWORK)}"; GHMCP_NETWORK="${GHMCP_NETWORK:-ghidra-headless-mcp}"
-if [ ! -d "$SAMPLES_PATH" ]; then
-  # Checked here because docker would otherwise create it, root-owned.
-  echo "error: no samples directory at $SAMPLES_PATH — set up ghidra-headless-mcp first" >&2
-  echo "       (clone it beside this repository, or set KEYSTONE_SAMPLES_DIR in infra/.env)" >&2
-  exit 1
-fi
-if [ "$ENGINE" = 1 ] && ! docker network inspect "$GHMCP_NETWORK" >/dev/null 2>&1; then
-  echo "error: no Docker network '$GHMCP_NETWORK' — start ghidra-headless-mcp first" >&2
-  echo "       (docker compose up -d in its repository; or run with --no-engine)" >&2
-  exit 1
-fi
-
 # --- optional clean slate ----------------------------------------------------
 if [ "$FRESH" = 1 ]; then
-  # The samples directory belongs to ghidra-headless-mcp and is left alone.
   echo "==> wiping volumes (postgres, s3)"
   $COMPOSE_ENGINE --profile engine down -v
 fi

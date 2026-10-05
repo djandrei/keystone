@@ -60,9 +60,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       s3-init: { condition: service_completed_successfully }
-    # /samples is ghidra-headless-mcp's samples directory, shared with it so the
-    # path the worker hands to analyze_binary is the same file on both sides.
-    volumes: ["../backend:/app", "${KEYSTONE_SAMPLES_DIR:-../../ghidra-headless-mcp/samples}:/samples"]
+    volumes: ["../backend:/app"]
     expose: ["8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/readyz', timeout=5).status==200 else 1)"]
@@ -86,8 +84,9 @@ services:
 
   # --- engine profile (M2): the analysis worker ---
   # Ghidra itself is not part of this stack: the worker calls a running
-  # ghidra-headless-mcp (its own repository and compose) over that stack's
-  # network, as http://ghidra-headless-mcp:1341. Start it first.
+  # ghidra-headless-mcp (its own repository and compose) at KEYSTONE_MCP_ENDPOINT,
+  # its published --http /api on the Docker host, and sends each binary there as
+  # raw bytes. The two stacks share no files and no network. Start it first.
   worker:
     build:
       context: ../backend
@@ -96,17 +95,11 @@ services:
     <<: *backend-env
     depends_on:
       redis: { condition: service_healthy }
-    volumes: ["../backend:/app", "${KEYSTONE_SAMPLES_DIR:-../../ghidra-headless-mcp/samples}:/samples"]
-    networks: [default, ghidra]
+    volumes: ["../backend:/app"]
+    # host.docker.internal is not defined on Linux unless mapped like this.
+    extra_hosts: ["host.docker.internal:host-gateway"]
     command: ["celery", "-A", "worker.app", "worker", "--loglevel=info", "--concurrency=4"]
 
 volumes:
   pgdata:
   s3data:
-
-networks:
-  default:
-  # ghidra-headless-mcp's compose network (it names it; start that stack first).
-  ghidra:
-    external: true
-    name: ${KEYSTONE_GHMCP_NETWORK:-ghidra-headless-mcp}

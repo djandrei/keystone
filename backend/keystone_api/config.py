@@ -59,10 +59,12 @@ class Settings(BaseSettings):
 
     # --- uploads / storage (M2.5) ---
     upload_max_bytes: int = 104_857_600  # 100 MiB
-    sample_dir: str = "/samples"  # shared volume where uploads are written for Ghidra import
 
     # --- ghidra-headless-mcp (M2) ---
-    mcp_endpoint: str = "http://ghidra-headless-mcp:1341"
+    # A separate service reached by URL only: its --http /api surface, which takes
+    # binaries as raw bytes at /upload and answers client errors with 4xx.
+    # host.docker.internal is the Docker host, where it publishes its port.
+    mcp_endpoint: str = "http://host.docker.internal:1351/api"
     # Bearer token for the authenticated MCP server. Deployment secret — never in
     # the DB. Must equal the server's GHMCP_API_KEY (compose feeds both from one var).
     mcp_api_key: str = ""

@@ -34,16 +34,12 @@ def _prune(argv: list[str]) -> int:
     p.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     args = p.parse_args(argv)
 
-    from .config import get_settings
     from .prune import prune_binaries
     from .storage import get_object_store
 
-    sample_dir = get_settings().sample_dir
     store = get_object_store()
     with session_scope() as s:
-        preview = prune_binaries(
-            s, store, sample_dir, max_bytes=args.max_bytes, ids=args.ids, dry_run=True
-        )
+        preview = prune_binaries(s, store, max_bytes=args.max_bytes, ids=args.ids, dry_run=True)
         if not preview["matched"]:
             print("no binaries match — nothing to do")
             return 0
@@ -57,10 +53,10 @@ def _prune(argv: list[str]) -> int:
             if reply != "y":
                 print("aborted")
                 return 1
-        result = prune_binaries(s, store, sample_dir, max_bytes=args.max_bytes, ids=args.ids)
+        result = prune_binaries(s, store, max_bytes=args.max_bytes, ids=args.ids)
     print(
         f"deleted {result['binaries']} binaries, {result['analyses']} analyses, "
-        f"{result['objects']} objects, {result['samples']} sample files"
+        f"{result['objects']} objects"
     )
     return 0
 

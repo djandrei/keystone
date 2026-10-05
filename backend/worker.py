@@ -307,16 +307,18 @@ def _run_analysis(analysis_id: int, session) -> AnalysisStatus:  # type: ignore[
             sysset.default_model,
         )
 
-    sample_path = f"{settings.sample_dir}/{binary.sha256}_{binary.ghidra_program_name}"
+    upload_name = f"{binary.sha256}_{binary.ghidra_program_name}"
     ref = BinaryRef(
         program=binary.ghidra_program_name, sha256=binary.sha256, filename=binary.filename
     )
 
     def pipeline(_a):  # type: ignore[no-untyped-def]
-        # import into Ghidra; use the ACTUAL created program name (the staged
-        # file is {sha}_{name}, so Ghidra names it that, not the bare name).
-        result = client.analyze_binary(sample_path)
-        ref.program = result.get("program") or ref.program
+        # Send Keystone's copy to Ghidra; the server imports it and deletes the
+        # upload in the same call, so the two stacks share no files. Use the
+        # ACTUAL created program name (the upload is {sha}_{name}, so Ghidra
+        # names it that, not the bare name).
+        result = client.import_binary(upload_name, store.get(binary.storage_key))
+        ref.program = (result.get("analysis") or {}).get("program") or ref.program
         if _a.mode is AnalysisMode.vr:
             from keystone_engine.pipelines import vr_path
 

@@ -1,10 +1,13 @@
-"""Typed client for `ghidra-headless-mcp` (30 tools behind mcpo/OpenAPI).
+"""Typed client for `ghidra-headless-mcp`, over its plain HTTP/JSON surface.
 
 Each MCP tool is a `POST {base}/{tool}` whose body is the argument dict and whose
-response is the tool's result JSON (mcpo omits null fields — always use .get()).
+response is the tool's result JSON (null fields may be omitted — always use
+.get()). The base is the server's `--http` `/api`, which answers failures with a
+status that says whose fault it was and a `{"error": {"kind", "message"}}` body;
+binaries go to `POST {base}/upload` as raw bytes.
 
 The transport is injectable: unit tests pass a `FakeTransport`; the default
-`HttpTransport` (stdlib urllib) talks to a running mcpo. Every call is a JVM cold
+`HttpTransport` (stdlib urllib) talks to a running server. Every call is a JVM cold
 start on the server (~2.8 s), so the client batches where the server supports it
 (decompile/xref list forms) to amortize it.
 """
@@ -14,8 +17,13 @@ from __future__ import annotations
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Protocol, runtime_checkable
+
+# Above the server's ANALYZE_TIMEOUT_S (1800 s), so a slow import ends with the
+# server's 504 rather than a client timeout that would be retried as new work.
+IMPORT_TIMEOUT_S = 1830.0
 
 
 class McpError(RuntimeError):
@@ -25,6 +33,20 @@ class McpError(RuntimeError):
 @runtime_checkable
 class Transport(Protocol):
     def call(self, tool: str, args: dict) -> dict: ...
+
+    def upload(self, filename: str, data: bytes, params: dict, timeout: float) -> dict: ...
+
+
+def _error_detail(e: urllib.error.HTTPError) -> str:
+    """`kind: message` from the server's error body, else the raw text."""
+    raw = e.read().decode("utf-8", "replace")
+    try:
+        err = json.loads(raw).get("error")
+        if isinstance(err, dict) and err.get("message"):
+            return f"{err.get('kind', 'error')}: {err['message']}"
+    except (ValueError, AttributeError):
+        pass
+    return raw[:500]
 
 
 class HttpTransport:
@@ -43,31 +65,40 @@ class HttpTransport:
         self.retries = retries
         self.backoff = backoff
 
-    def _headers(self) -> dict:
-        headers = {"Content-Type": "application/json"}
-        # The mcpo (--api-key) and native surfaces both take a bearer token.
+    def _headers(self, content_type: str) -> dict:
+        headers = {"Content-Type": content_type}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
 
     def call(self, tool: str, args: dict) -> dict:
-        url = f"{self.base_url}/{tool}"
         body = json.dumps(args).encode("utf-8")
+        return self._post(tool, f"{self.base_url}/{tool}", body, "application/json", self.timeout)
+
+    def upload(self, filename: str, data: bytes, params: dict, timeout: float) -> dict:
+        query = urllib.parse.urlencode({"filename": filename, **params})
+        url = f"{self.base_url}/upload?{query}"
+        return self._post("upload", url, data, "application/octet-stream", timeout)
+
+    def _post(self, tool: str, url: str, body: bytes, content_type: str, timeout: float) -> dict:
         last: Exception | None = None
         for attempt in range(self.retries + 1):
-            req = urllib.request.Request(url, data=body, headers=self._headers(), method="POST")
+            req = urllib.request.Request(
+                url, data=body, headers=self._headers(content_type), method="POST"
+            )
             try:
                 with urllib.request.urlopen(
-                    req, timeout=self.timeout
+                    req, timeout=timeout
                 ) as resp:  # noqa: S310 (trusted internal service)
                     payload = resp.read().decode("utf-8")
                 parsed = json.loads(payload) if payload else {}
                 return parsed if isinstance(parsed, dict) else {"result": parsed}
             except urllib.error.HTTPError as e:
-                # 5xx (incl. JVM warmup 502/503) are retryable; 4xx are not.
-                if e.code < 500 or attempt == self.retries:
-                    detail = e.read().decode("utf-8", "replace")[:500]
-                    raise McpError(f"{tool} -> HTTP {e.code}: {detail}") from e
+                # 4xx is the caller's fault and 504 an analysis that ran out of
+                # time — repeating either cannot help. Other 5xx (incl. JVM
+                # warmup 502/503) are retryable.
+                if e.code < 500 or e.code == 504 or attempt == self.retries:
+                    raise McpError(f"{tool} -> HTTP {e.code}: {_error_detail(e)}") from e
                 last = e
             except (urllib.error.URLError, TimeoutError, ValueError) as e:
                 if attempt == self.retries:
@@ -94,6 +125,15 @@ class GhidraMcpClient:
         self._t = transport
 
     # --- import / analyze ---------------------------------------------------
+    def import_binary(self, filename: str, data: bytes) -> dict:
+        """Upload the bytes, import + auto-analyze them, and let the server delete
+        the upload — one request. The server stages the file in a private
+        directory, so concurrent imports of the same name cannot collide. Returns
+        UploadResult; the created program name is in `analysis.program`."""
+        return self._t.upload(
+            filename, data, {"analyze": "true", "keep": "false"}, IMPORT_TIMEOUT_S
+        )
+
     def analyze_binary(self, binary_path: str, force: bool = False) -> dict:
         """Import + auto-analyze once. Returns AnalysisResult (incl. the created
         program name, which is not always the file name)."""
