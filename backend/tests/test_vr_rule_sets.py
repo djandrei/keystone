@@ -56,6 +56,9 @@ def _tok(client):
 
 def _setup(app, client, session):
     """A bootstrapped team with one uploaded binary. Returns (team, binary_id, token)."""
+    # The upload stores the binary; without a stand-in it goes to the real S3,
+    # which exists inside the Compose stack but not on a CI runner.
+    app.config.setdefault("OBJECT_STORE", _FakeStore())
     services.bootstrap(session)
     session.commit()
     team = session.query(Team).filter_by(name="Default").one()
