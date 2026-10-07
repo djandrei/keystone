@@ -241,6 +241,22 @@ infra/      docker-compose.yml, nginx reverse proxy, .env.example, smoke.sh
 
 Built stage by stage; each stage is test-gated and committed independently.
 
+## Acknowledgements
+
+- **"Building Agentic RE: Automating Reverse Engineering & Vulnerability
+  Research with AI"**, the DEF CON 34 training by Clearseclabs (August 2026), is
+  where Keystone started. The course's approach to DSPy-driven analysis,
+  platform classification, Semgrep over decompiled code, and defending agents
+  against prompt injection hidden in the binaries they analyse shaped Keystone's
+  design. The course materials are © CLEARSECLABS LLC.
+- **ghidra-headless-mcp** is Keystone's Ghidra backend: a standalone MCP server
+  that exposes Ghidra's headless analyzer as tools. Keystone calls it over its
+  HTTP API to import binaries, decompile functions and walk cross-references.
+- **[0xdea/semgrep-rules](https://github.com/0xdea/semgrep-rules)** by Marco
+  Ivaldi (raptor) supplies Keystone's built-in vulnerability-research rule sets.
+  The rules are vendored at commit `33155497` under their MIT licence; see
+  `backend/semgrep-rules/0xdea/`.
+
 ## License
 
 Copyright 2026 Andrei Dimitrief-Jianu. Licensed under the
