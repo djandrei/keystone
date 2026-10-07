@@ -46,7 +46,7 @@ class CapturingAnalyzer:
             key_functions = "run"
             attack_surface = "argv"
             language_runtime = "C"
-            behavioral_facts = {"network_operations": ["socket"], "file_operations": ["fopen"]}
+            behavioral_facts = {"network_activity": ["socket"], "file_activity": ["fopen"]}
 
         return P()
 
