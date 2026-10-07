@@ -20,6 +20,8 @@ handler, worker-side failure capture, traceback logging, `/metrics` error
 counters, and a frontend error boundary (see `docs/observability.md`).
 Everything is test-gated and comes up with one command.
 
+![Keystone dashboard: recent RE and VR analyses with their status](docs/images/dashboard.png)
+
 ## Quick start (everything in Docker Compose)
 
 No host Python or Node is required — every service runs in a container, with
