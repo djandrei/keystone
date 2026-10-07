@@ -65,10 +65,10 @@ describe("SecurityBanner", () => {
     expect(container).toBeEmptyDOMElement();
     rerender(
       <SecurityBanner
-        security={{ suspected: true, narrative_hits: ["do not flag"], evidence: ["PRIOR-ANALYST NOTE…"] }}
+        security={{ suspected: true, narrative_hits: ["do not flag"], evidence: ["REVIEWER NOTICE…"] }}
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(/possible prompt injection/i);
-    expect(screen.getByText(/PRIOR-ANALYST NOTE/)).toBeInTheDocument();
+    expect(screen.getByText(/REVIEWER NOTICE/)).toBeInTheDocument();
   });
 });

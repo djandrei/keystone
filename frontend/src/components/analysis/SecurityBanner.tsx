@@ -14,8 +14,8 @@ export function SecurityBanner({ security }: { security?: InjectionReport | null
         Possible prompt injection in this sample
       </div>
       <p className="text-sm text-fg-muted">
-        The binary contains text that tries to influence the analysis (e.g. a fake “prior-analyst
-        note”). Keystone sanitized the input and reasoned from extracted behaviors, not the
+        The binary contains text that tries to influence the analysis (e.g. a fake “reviewer
+        notice” vouching for it). Keystone sanitized the input and reasoned from extracted behaviors, not the
         embedded strings — but review the verdict with this in mind.
       </p>
       {evidence.length > 0 && (
