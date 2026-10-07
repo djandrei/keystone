@@ -54,7 +54,7 @@ test("M6 end-to-end: author a rule set, run VR with it, see the pinned version",
   await expect(page.getByRole("cell", { name: new RegExp(name) })).toBeVisible();
 
   // --- run VR against it
-  await page.getByRole("link", { name: /Binaries/ }).click();
+  await page.getByRole("link", { name: "Binaries", exact: true }).click();
   await page.locator('input[aria-label="Upload binary"]').setInputFiles(makeElf("rs-sample.elf"));
   await expect(page.getByRole("cell", { name: "rs-sample.elf" }).first()).toBeVisible();
 

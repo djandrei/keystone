@@ -23,7 +23,7 @@ test("M3 end-to-end: VR run with the interactive rule pick -> findings", async (
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
 
-  await page.getByRole("link", { name: /Binaries/ }).click();
+  await page.getByRole("link", { name: "Binaries", exact: true }).click();
   await page.locator('input[aria-label="Upload binary"]').setInputFiles(makeElf());
   await expect(page.getByRole("cell", { name: "ksthunk.sys" }).first()).toBeVisible();
 
@@ -39,7 +39,7 @@ test("M3 end-to-end: VR run with the interactive rule pick -> findings", async (
   await page.getByRole("button", { name: /kernel-integer-wraparound/ }).click();
 
   // the run completes and the vulnerability findings render
-  await expect(page.getByText("succeeded")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("succeeded", { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/vulnerability findings/i)).toBeVisible();
   await expect(page.getByText("CWE-190")).toBeVisible();
   await expect(page.getByText(/reachable: yes/i)).toBeVisible();

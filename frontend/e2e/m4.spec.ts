@@ -59,7 +59,7 @@ test("M4: collaboration, search, export and audit", async ({ page, request }) =>
 
   // open it and export the markdown report
   await page.getByRole("link", { name: /view/i }).first().click();
-  await expect(page.getByText("succeeded")).toBeVisible();
+  await expect(page.getByText("succeeded", { exact: true })).toBeVisible();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "MD" }).click(),

@@ -24,7 +24,7 @@ test("SEC: an injection-flagged sample surfaces the ⚠ banner + history marker"
   await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
 
   // a sample whose name signals an embedded injection (fake-engine demo hook)
-  await page.getByRole("link", { name: /Binaries/ }).click();
+  await page.getByRole("link", { name: "Binaries", exact: true }).click();
   const name = `inject_${Date.now()}.bin`;
   await page.locator('input[aria-label="Upload binary"]').setInputFiles(elf(name));
   const row = page.getByRole("row").filter({ hasText: name });

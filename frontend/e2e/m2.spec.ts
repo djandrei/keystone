@@ -29,7 +29,7 @@ test("M2 end-to-end: upload -> run RE -> watch steps -> report -> history", asyn
   await login(page);
 
   // upload a binary
-  await page.getByRole("link", { name: /Binaries/ }).click();
+  await page.getByRole("link", { name: "Binaries", exact: true }).click();
   await page.locator('input[aria-label="Upload binary"]').setInputFiles(makeElf());
   await expect(page.getByRole("cell", { name: "ls" }).first()).toBeVisible();
 
@@ -38,7 +38,7 @@ test("M2 end-to-end: upload -> run RE -> watch steps -> report -> history", asyn
   await expect(page.getByRole("heading", { name: /Analysis #/ })).toBeVisible();
 
   // the analysis completes (fake engine) and the report shows Language / runtime = C
-  await expect(page.getByText("succeeded")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("succeeded", { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("Language / runtime").first()).toBeVisible();
   await expect(page.getByText("RE Report")).toBeVisible();
 

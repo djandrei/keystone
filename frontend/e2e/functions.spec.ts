@@ -25,13 +25,13 @@ test("M7 end-to-end: named functions, and unticking one removes it from the repo
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
 
-  await page.getByRole("link", { name: /Binaries/ }).click();
+  await page.getByRole("link", { name: "Binaries", exact: true }).click();
   await page.locator('input[aria-label="Upload binary"]').setInputFiles(makeElf("fn-sample.elf"));
   await expect(page.getByRole("cell", { name: "fn-sample.elf" }).first()).toBeVisible();
 
   await page.getByRole("button", { name: /run re/i }).first().click();
   await expect(page.getByRole("heading", { name: /Analysis #/ })).toBeVisible();
-  await expect(page.getByText("succeeded")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText("succeeded", { exact: true })).toBeVisible({ timeout: 60_000 });
 
   // the panel lists the decompiled functions, each with its Ghidra symbol
   const panel = page.getByRole("heading", { name: /^Functions \(/ });
@@ -43,12 +43,17 @@ test("M7 end-to-end: named functions, and unticking one removes it from the repo
   await expect(firstBox).toBeChecked();
 
   // it is in the report…
-  await expect(page.getByText("## Functions").or(page.getByText("Functions"))).toBeVisible();
+  // (the Markdown report is collapsed under "Full markdown report"; "Functions"
+  // alone would also match the panel heading and "Key functions")
+  await page.getByText("Full markdown report").click();
+  const report = page.locator("pre", { hasText: "## Functions" });
+  await expect(report).toContainText(name);
 
   // …until it is unticked, with no regeneration step
-  await firstBox.uncheck();
+  // The box mirrors the server (checked = included), so it flips only after the
+  // toggle request and refetch; uncheck() would check the state too early.
+  await firstBox.click();
   await expect(firstBox).not.toBeChecked();
-  await expect
-    .poll(async () => (await page.content()).split(name).length, { timeout: 15_000 })
-    .toBeLessThan(3);
+  // The panel still lists it (to tick back), so check the report, not the page.
+  await expect(report).not.toContainText(name, { timeout: 15_000 });
 });

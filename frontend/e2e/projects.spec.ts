@@ -28,7 +28,7 @@ async function login(page: import("@playwright/test").Page) {
 
 test("projects: create, upload into it, group, move, and delete", async ({ page }) => {
   await login(page);
-  await page.getByRole("link", { name: /Binaries/ }).click();
+  await page.getByRole("link", { name: "Binaries", exact: true }).click();
 
   // the sharing surface is present
   await expect(page.getByText(/shared with .* of /i).first()).toBeVisible();
@@ -51,12 +51,16 @@ test("projects: create, upload into it, group, move, and delete", async ({ page 
 
   // deleting the non-empty project is refused with a helpful message
   await page.getByRole("button", { name: new RegExp(`delete ${project}`, "i") }).click();
-  await expect(page.getByText(/move them out first/i)).toBeVisible();
+  // The refusal arrives as a toast. Radix also mirrors each toast into a hidden
+  // aria-live announcer outside the toast region, so scope to the region.
+  const toasts = page.getByRole("region", { name: /notifications/i });
+  await expect(toasts.getByText(/move them out first/i)).toBeVisible();
 
-  // move the binary out to Unassigned, then the (now empty) project deletes
-  await page.getByRole("combobox", { name: /move fw.bin/i }).click();
+  // move the binary out to Unassigned, then the (now empty) project deletes.
+  // Every fw.bin row has a "Move fw.bin" combobox; this test's shows its project.
+  await page.getByRole("combobox", { name: /move fw.bin/i }).filter({ hasText: project }).click();
   await page.getByRole("option", { name: "Unassigned" }).click();
-  await expect(page.getByText(/moved to unassigned/i)).toBeVisible();
+  await expect(toasts.getByText(/moved to unassigned/i)).toBeVisible();
   await page.getByRole("button", { name: new RegExp(`delete ${project}`, "i") }).click();
   await expect(page.getByRole("button", { name: new RegExp(`toggle ${project}`, "i") })).toBeHidden();
 });
