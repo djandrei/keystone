@@ -251,6 +251,7 @@ function EditorModal({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const qc = useQueryClient();
   const { user } = useAuth();
   const isNew = ruleSetId == null;
 
@@ -289,6 +290,9 @@ function EditorModal({
         : ruleSetsApi.addVersion(ruleSetId!, content, notes || undefined),
     onSuccess: () => {
       toast({ title: isNew ? "Rule set created" : "New version saved", variant: "success" });
+      // The detail (history, content) is cached like any query; without this the
+      // editor reopens on the pre-save copy, and saving that would revert the edit.
+      if (!isNew) qc.invalidateQueries({ queryKey: ["rule-set", ruleSetId] });
       onSaved();
     },
     onError: (e) =>

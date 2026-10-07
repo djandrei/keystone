@@ -69,8 +69,8 @@ const TEAM_RS = {
 
 const TEAMS = [{ id: 1, name: "Blue", created_at: null, created_by: 1 }];
 
-function renderPage() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderPage(staleTime = 0) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime } } });
   render(
     <ToastProvider>
       <QueryClientProvider client={qc}>
@@ -224,6 +224,34 @@ it("saving an existing rule set appends a version rather than rewriting it", asy
 
   await waitFor(() => expect(body).not.toBeNull());
   expect(body!.notes).toBe("tightened the copy rule");
+});
+
+it("reopening the editor after saving shows the new version, not a cached copy", async () => {
+  // The app caches queries for 30 s (src/lib/queryClient.ts). Saving used to
+  // refresh only the list, so the editor reopened on the pre-save detail: the
+  // old history count and the old YAML, which a second save would write back.
+  setAccess("access-1");
+  let versions = [version()];
+  server.use(
+    ...baseHandlers(),
+    http.get("/api/rule-sets/7", () =>
+      HttpResponse.json({ ...TEAM_RS, versions, content: `rules: [] # v${versions.length}` }),
+    ),
+    http.post("/api/rule-sets/7/versions", () => {
+      versions = [version({ id: 31, version_no: 2 }), ...versions];
+      return HttpResponse.json(versions[0], { status: 201 });
+    }),
+  );
+  renderPage(30_000);
+
+  await userEvent.click(await screen.findByText("Edit"));
+  expect(await screen.findByText(/Version history \(1\)/)).toBeInTheDocument();
+  await userEvent.click(screen.getByText("Save new version"));
+  await waitFor(() => expect(screen.queryByText("Save new version")).not.toBeInTheDocument());
+
+  await userEvent.click(await screen.findByText("Edit"));
+  expect(await screen.findByText(/Version history \(2\)/)).toBeInTheDocument();
+  expect(screen.getByLabelText("Rules (YAML)")).toHaveValue("rules: [] # v2");
 });
 
 it("archives a rule set", async () => {
