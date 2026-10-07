@@ -26,6 +26,7 @@ from keystone_engine.llm import configure_lm, make_lm
 from keystone_engine.mcp import GhidraMcpClient
 from keystone_engine.pipelines import BinaryRef, re_path
 from keystone_engine.results import Report, REResult, VRFinding
+from keystone_engine.signatures.naming import NamedFunction
 
 settings = get_settings()
 app = Celery("keystone", broker=settings.redis_url, backend=settings.redis_url)
@@ -154,6 +155,14 @@ def _make_fake_re_pipeline(filename: str | None):
             language_runtime="C",
             tool_calls=2,
             raw={"fake": True},
+            # The two functions the decompile step reports, named as the real
+            # naming agent would, so the Functions panel has rows (M7).
+            function_names=[
+                NamedFunction("main", "00401136", "run_cli", "Entry point; parses argv."),
+                NamedFunction(
+                    "FUN_00401200", "00401200", "check_license", "Compares argv[1] to a key."
+                ),
+            ],
         )
         report = Report(format="md", content="# RE Analysis\n\n**Language / runtime:** C\n")
         yield ProgressEvent.step_finish("analyze", 7, language_runtime="C")

@@ -62,3 +62,11 @@ def test_fake_pipeline_persists_re_result(session):
     # progress captured the full step sequence
     steps = [e["step"] for e in a.progress["events"] if e["type"] == "step_finish"]
     assert "overview" in steps and "analyze" in steps
+    # function naming (M7): the fake run names the functions it decompiled, so
+    # the Functions panel and its e2e have something to show without an LLM
+    from keystone_api.models import AnalysisFunction, FunctionName
+
+    ids = [f.function_name_id for f in session.query(AnalysisFunction).filter_by(analysis_id=a.id)]
+    names = session.query(FunctionName).filter(FunctionName.id.in_(ids)).all()
+    assert len(names) == 2
+    assert all(n.suggested_name for n in names)
