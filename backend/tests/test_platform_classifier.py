@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from keystone_engine.mcp import GhidraMcpClient
 from keystone_engine.signatures import (
-    classify_platform,
     classify_platform_from_imports,
-    classify_platform_simple,
+    detect_platform,
+    platform_from_filename,
 )
 
 
@@ -21,12 +21,12 @@ class FakeTransport:
 
 
 def test_simple_by_extension():
-    assert classify_platform_simple("driver.sys")["platform"] == "windows"
-    assert classify_platform_simple("evil.dll")["platform"] == "windows"
-    assert classify_platform_simple("thing.dylib")["platform"] == "apple"
-    assert classify_platform_simple("module.ko")["platform"] == "linux"
-    assert classify_platform_simple("app.apk")["platform"] == "android"
-    assert classify_platform_simple("ls")["platform"] == "unknown"
+    assert platform_from_filename("driver.sys")["platform"] == "windows"
+    assert platform_from_filename("evil.dll")["platform"] == "windows"
+    assert platform_from_filename("thing.dylib")["platform"] == "apple"
+    assert platform_from_filename("module.ko")["platform"] == "linux"
+    assert platform_from_filename("app.apk")["platform"] == "android"
+    assert platform_from_filename("ls")["platform"] == "unknown"
 
 
 def test_from_imports_scores_each_platform():
@@ -52,11 +52,11 @@ def test_from_imports_scores_each_platform():
 def test_classify_prefers_filename_then_imports():
     # filename wins outright
     c = GhidraMcpClient(transport=FakeTransport(["__libc_start_main"]))
-    assert classify_platform("prog", c, filename="thing.dll")["platform"] == "windows"
+    assert detect_platform("prog", c, filename="thing.dll")["platform"] == "windows"
 
     # unknown filename -> falls through to the import heuristic
     c2 = GhidraMcpClient(transport=FakeTransport(["CreateFileW", "VirtualAlloc"]))
-    assert classify_platform("prog", c2, filename="stripped.gzf")["platform"] == "windows"
+    assert detect_platform("prog", c2, filename="stripped.gzf")["platform"] == "windows"
 
 
 def test_classify_falls_back_to_injected_classifier():
@@ -67,5 +67,17 @@ def test_classify_falls_back_to_injected_classifier():
         platform = "linux"
         reasoning = "ReAct decided"
 
-    result = classify_platform("prog", c, filename="unknown", classifier=lambda program: Stub())
+    result = detect_platform("prog", c, filename="unknown", classifier=lambda program: Stub())
     assert result == {"platform": "linux", "reasoning": "ReAct decided"}
+
+
+def test_every_decisive_extension_and_case():
+    expected = {
+        "setup.EXE": "windows",
+        "libfoo.so": "linux",
+        "Driver.KEXT": "apple",
+        "classes.dex": "android",
+        "archive.tar.gz": "unknown",
+    }
+    for name, platform in expected.items():
+        assert platform_from_filename(name)["platform"] == platform, name

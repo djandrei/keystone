@@ -1,11 +1,13 @@
 """Platform classification: WHERE does this binary run?
 
-Three layers, cheapest first:
-1. `classify_platform_simple` — filename extension (no LLM, no Ghidra).
-2. `classify_platform_from_imports` — deterministic scoring over the import table
-   (one MCP call). Imports are the fastest true signal of a binary's OS.
-3. `make_platform_classifier` — a DSPy ReAct agent over MCP tools, for the hard
-   `.gzf`/stripped/ambiguous cases. Exercised in integration.
+`detect_platform` tries three answers in order of cost and stops at the first
+that is sure:
+1. `platform_from_filename` — some extensions are only ever one platform's.
+2. `classify_platform_from_imports` — score the import table against known
+   per-OS libraries and symbols (one MCP call). Imports are the most reliable
+   cheap signal.
+3. An agent from `build_platform_agent` — a DSPy ReAct loop over Ghidra queries,
+   for stripped, packed or `.gzf` inputs where the first two come back unknown.
 """
 
 from __future__ import annotations
@@ -66,28 +68,30 @@ _INDICATORS: dict[str, tuple[str, ...]] = {
 }
 
 
-def classify_platform_simple(binary_name: str) -> dict:
-    """Filename-only fast path (no LLM required): a fixed extension -> platform
-    mapping."""
-    n = binary_name.lower()
-    if n.endswith((".sys", ".dll", ".exe")):
-        return {"platform": "windows", "reasoning": "File extension indicates a Windows binary"}
-    if n.endswith((".kext", ".dylib")):
-        return {
-            "platform": "apple",
-            "reasoning": "File extension (.kext/.dylib) indicates a macOS binary",
-        }
-    if n.endswith((".ko", ".so")):
-        return {
-            "platform": "linux",
-            "reasoning": "File extension (.ko/.so) indicates a Linux binary",
-        }
-    if n.endswith((".apk", ".dex")):
-        return {
-            "platform": "android",
-            "reasoning": "File extension (.apk/.dex) indicates an Android artifact",
-        }
-    return {"platform": "unknown", "reasoning": "Could not classify from filename; inspect imports"}
+# Extensions that settle the platform on their own. Anything else (including no
+# extension, the usual case for ELF executables) falls through to the imports.
+_DECISIVE_EXTENSIONS: dict[str, str] = {
+    ".exe": "windows",
+    ".dll": "windows",
+    ".sys": "windows",
+    ".dylib": "apple",
+    ".kext": "apple",
+    ".so": "linux",
+    ".ko": "linux",
+    ".apk": "android",
+    ".dex": "android",
+}
+
+
+def platform_from_filename(name: str) -> dict:
+    """Answer from the extension alone when it is decisive: no Ghidra call, no
+    model. Returns platform 'unknown' when the name does not settle it."""
+    _stem, dot, ext = name.lower().rpartition(".")
+    suffix = dot + ext if dot else ""
+    platform = _DECISIVE_EXTENSIONS.get(suffix)
+    if platform is None:
+        return {"platform": "unknown", "reasoning": "The file name does not settle it."}
+    return {"platform": platform, "reasoning": f"Only {platform} uses {suffix} files."}
 
 
 def classify_platform_from_imports(names: list[str]) -> dict:
@@ -130,20 +134,20 @@ def _import_names(client: GhidraMcpClient, program: str) -> list[str]:
     return names
 
 
-def classify_platform(
+def detect_platform(
     program: str,
     client: GhidraMcpClient,
     *,
     filename: str | None = None,
     classifier: Any | None = None,
 ) -> dict:
-    """Layered classification. Filename → import heuristic → (optional) ReAct LLM.
-    `classifier` is any callable `f(program=...) -> obj.platform/.reasoning`
-    (a DSPy ReAct module, or a test stub)."""
+    """The file name, then the imports, then (if given) `classifier`: any callable
+    `f(program=...)` returning an object with `.platform` and `.reasoning`, such
+    as an agent from `build_platform_agent` or a test stub."""
     if filename:
-        simple = classify_platform_simple(filename)
-        if simple["platform"] != "unknown":
-            return simple
+        by_name = platform_from_filename(filename)
+        if by_name["platform"] != "unknown":
+            return by_name
 
     heuristic = classify_platform_from_imports(_import_names(client, program))
     if heuristic["platform"] != "unknown":
@@ -159,29 +163,29 @@ def classify_platform(
     return {"platform": "unknown", "reasoning": "Inconclusive from filename and imports"}
 
 
-# --- DSPy ReAct path (used by the pipeline / integration) -------------------
+# --- the agent, for inputs the cheap paths cannot settle ---------------------
 def _platform_signature() -> Any:
     import dspy
 
-    class McpPlatformSignature(dspy.Signature):
-        """Classify the target platform of an analyzed program using Ghidra MCP
-        tools. Start with the import table; imports are the strongest signal of a
-        binary's operating system. Use program metadata only if imports are
-        ambiguous."""
+    class PlatformFromImports(dspy.Signature):
+        """Work out which operating system a program in the Ghidra project was
+        built for. The imported libraries and symbols usually decide it; turn to
+        the exports and the program's format and architecture when they do not."""
 
-        program: str = dspy.InputField(desc="Program name in the Ghidra project")
+        program: str = dspy.InputField(desc="The program's name in the Ghidra project")
         platform: str = dspy.OutputField(
-            desc="One of: windows, linux, apple, android, unknown. Use 'unknown' only if evidence is insufficient."
+            desc="windows, linux, apple or android; unknown when the tools give no clear answer"
         )
         reasoning: str = dspy.OutputField(
-            desc="Concise explanation citing specific imports/metadata"
+            desc="The imports or metadata that decided it, in a sentence or two"
         )
 
-    return McpPlatformSignature
+    return PlatformFromImports
 
 
-def make_platform_classifier(client: GhidraMcpClient, *, max_iters: int = 5) -> Any:
-    """A DSPy ReAct classifier whose tools are the MCP import/export/metadata calls."""
+def build_platform_agent(client: GhidraMcpClient, *, max_iters: int = 5) -> Any:
+    """A DSPy ReAct agent that answers by querying Ghidra for the program's
+    imports, exports and metadata."""
     import dspy
 
     def list_imports(program: str) -> str:
