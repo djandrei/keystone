@@ -65,6 +65,30 @@ def test_decompile_passes_single_or_batch():
     assert t.calls[1][1]["function"] == ["main", "parse"]
 
 
+def test_find_call_paths_maps_arguments_and_defaults():
+    paths = {
+        "path_count": 1,
+        "truncated": False,
+        "paths": [[{"name": "main", "address": "00401136"}]],
+    }
+    t = FakeTransport({"find_call_paths": paths})
+    c = GhidraMcpClient(transport=t)
+    assert c.find_call_paths("ls", "main", "004014a0") == paths
+    # one proof is enough, so the default asks for few paths
+    assert t.calls[0] == (
+        "find_call_paths",
+        {"program": "ls", "source": "main", "target": "004014a0", "max_depth": 8, "max_paths": 3},
+    )
+    c.find_call_paths("ls", "_start", "copy_field", max_depth=4, max_paths=1)
+    assert t.calls[1][1] == {
+        "program": "ls",
+        "source": "_start",
+        "target": "copy_field",
+        "max_depth": 4,
+        "max_paths": 1,
+    }
+
+
 def test_xrefs_accept_list_and_star():
     t = FakeTransport()
     c = GhidraMcpClient(transport=t)

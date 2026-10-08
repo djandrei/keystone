@@ -190,3 +190,23 @@ class GhidraMcpClient:
 
     def resolve_symbol(self, name: str | list[str], programs: str | list[str] = "*") -> dict:
         return self._t.call("resolve_symbol", {"name": name, "programs": programs})
+
+    # --- call paths -----------------------------------------------------------
+    def find_call_paths(
+        self, program: str, source: str, target: str, *, max_depth: int = 8, max_paths: int = 3
+    ) -> dict:
+        """Call chains from `source` to `target` (names or entry addresses), each a
+        list of {name, address} from source to target. Only calls Ghidra resolved
+        are edges, so no path does not mean unreachable. `truncated` means
+        max_paths stopped the search. The default asks for few paths, since one
+        is proof."""
+        return self._t.call(
+            "find_call_paths",
+            {
+                "program": program,
+                "source": source,
+                "target": target,
+                "max_depth": max_depth,
+                "max_paths": max_paths,
+            },
+        )
