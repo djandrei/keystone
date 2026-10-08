@@ -7,6 +7,7 @@ findings — clean findings pass through untouched."""
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from keystone_engine.mcp import GhidraMcpClient
@@ -63,7 +64,8 @@ def assess_reachability(
             pred = agent(
                 finding_message=f.semgrep_message or "",
                 function_code=fence_untrusted(sanitize_decompiled(code_lookup(f))[0]),
-                function_name=f.file or "",
+                # f.file is the decompiled `{function}.c`; the function is its stem.
+                function_name=Path(f.file).stem if f.file else "",
             )
             out.append(
                 f.model_copy(
